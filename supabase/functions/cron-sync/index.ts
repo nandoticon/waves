@@ -16,7 +16,7 @@ const parser = new Parser({
     }
 });
 
-Deno.serve(async (req) => {
+Deno.serve(async () => {
     try {
         // Authenticate the cron request if coming from pg_cron, or allow no-verify for local testing if needed.
         // For security, usually you verify a secret header or JWT.
@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
             if (subErr || !subscriptions) continue;
 
             const now = new Date();
-            const feedsToSync = subscriptions
-                .map(sub => sub.feeds)
+            const feedsToSync = (subscriptions || [])
+                .map((sub: any) => sub.feeds)
                 .filter(Boolean)
-                .filter(feed => {
+                .filter((feed: any) => {
                     if (!feed.last_fetched_at) return true;
                     const lastFetched = new Date(feed.last_fetched_at);
                     const hoursSince = (now.getTime() - lastFetched.getTime()) / (1000 * 60 * 60);
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
                     console.log(`Syncing feed (Cron): ${feed.url}`);
                     const feedData = await parser.parseURL(feed.url);
 
-                    const articlesToInsert = feedData.items.map(item => ({
+                    const articlesToInsert = feedData.items.map((item: any) => ({
                         feed_id: feed.id,
                         title: item.title?.substring(0, 500) || 'Untitled',
                         url: item.link || '',
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
                         content: item.contentEncoded || item.content || '',
                         published_at: item.isoDate || item.pubDate || new Date().toISOString(),
                         image_url: item.enclosure?.url || item.image?.url || item.mediaContent?.['$']?.url || null
-                    })).filter(a => a.url);
+                    })).filter((a: any) => a.url);
 
                     if (articlesToInsert.length > 0) {
                         const { data: inserted, error: insertErr } = await supabase
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
                             // Trigger full-text extraction for these new articles
                             supabase.functions.invoke('extract-article', {
                                 body: { articles: inserted }
-                            }).catch(err => console.error('Cron: Failed to trigger extract-article:', err));
+                            }).catch((err: unknown) => console.error('Cron: Failed to trigger extract-article:', err));
                         }
                     }
 
@@ -107,9 +107,9 @@ Deno.serve(async (req) => {
             headers: { 'Content-Type': 'application/json' }
         });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Cron sync failed:", err);
-        return new Response(JSON.stringify({ error: err.message }), {
+        return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
         });

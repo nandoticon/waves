@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { ChevronLeft, Share, Bookmark, Loader2, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Share, Bookmark, ExternalLink } from 'lucide-react';
 import { useArticle, useSavedArticles, useToggleSave, useMarkAsRead } from '../hooks/useApi';
 import DOMPurify from 'dompurify';
 import clsx from 'clsx';
@@ -24,8 +24,30 @@ export default function Reader() {
 
     if (isLoading) {
         return (
-            <div className="bg-background min-h-screen flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="bg-background min-h-screen animate-in slide-in-from-bottom-4 duration-500">
+                <header className="sticky top-0 bg-background/90 backdrop-blur-xl z-10 flex items-center justify-between p-4 px-6 border-b border-border/10">
+                    <div className="w-10 h-10 rounded-full bg-muted/50 animate-pulse" />
+                    <div className="flex items-center gap-4">
+                        <div className="w-5 h-5 rounded bg-muted/50 animate-pulse" />
+                        <div className="w-5 h-5 rounded bg-muted/50 animate-pulse" />
+                    </div>
+                </header>
+                <article className="max-w-[480px] mx-auto px-6 py-8 pb-32">
+                    <div className="w-32 h-4 rounded bg-muted/50 animate-pulse mb-6" />
+                    <div className="w-full aspect-[16/9] rounded-3xl bg-muted/50 animate-pulse mb-8" />
+                    <div className="w-full h-8 rounded bg-muted/80 animate-pulse mb-3" />
+                    <div className="w-3/4 h-8 rounded bg-muted/80 animate-pulse mb-6" />
+                    <div className="w-24 h-4 rounded bg-muted/50 animate-pulse mb-2" />
+                    <div className="w-32 h-3 rounded bg-muted/50 animate-pulse mb-8" />
+                    <div className="w-full aspect-[4/3] rounded-2xl bg-muted/50 animate-pulse mb-10" />
+                    <div className="space-y-4">
+                        <div className="w-full h-4 rounded bg-muted/50 animate-pulse" />
+                        <div className="w-[90%] h-4 rounded bg-muted/50 animate-pulse" />
+                        <div className="w-[95%] h-4 rounded bg-muted/50 animate-pulse" />
+                        <div className="w-[80%] h-4 rounded bg-muted/50 animate-pulse" />
+                        <div className="w-full h-4 rounded bg-muted/50 animate-pulse" />
+                    </div>
+                </article>
             </div>
         );
     }

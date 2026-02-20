@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { AddFeedForm } from '../components/AddFeedForm';
 import { EmptyState } from '../components/EmptyState';
 import { useSyncFeeds, useArticles, useCurrents, useSavedArticles, useReadArticles, useMarkAsRead, useUnmarkAsRead, useToggleSave, useMarkOlderAsRead, useFlushOldArticles, useLastSyncTime, useProfile, useUpdateProfile } from '../hooks/useApi';
+import type { Article } from '../hooks/useApi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cleanExcerpt } from '../lib/sanitizer';
 
@@ -35,16 +36,16 @@ function getRelativeTime(dateString: string) {
     return `${diffYears} year${diffYears === 1 ? '' : 's'} ago`;
 }
 
-type ArticleType = { published_at?: string, feeds?: { subscriptions?: { current_id?: string }[], title?: string, icon_url?: string, url?: string }, id: string, title?: string, excerpt?: string, image_url?: string, url?: string, [key: string]: unknown };
+// Local types
 type CurrentType = { id: string, name: string, order_index?: number, [key: string]: unknown };
 
-function groupArticlesByDate(articles: ArticleType[], currents: CurrentType[], isRiver: boolean) {
+function groupArticlesByDate(articles: Article[], currents: CurrentType[], isRiver: boolean) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    const groups: Record<string, ArticleType[] | Record<string, ArticleType[]>> = {
+    const groups: Record<string, Article[] | Record<string, Article[]>> = {
         'Today': isRiver ? {} : [],
         'Yesterday': isRiver ? {} : [],
         'Older': isRiver ? {} : []
@@ -64,13 +65,13 @@ function groupArticlesByDate(articles: ArticleType[], currents: CurrentType[], i
             const currentId = article.feeds?.subscriptions?.[0]?.current_id;
             const currentName = currentId ? (currentMap.get(currentId) || 'Uncategorized') : 'Uncategorized';
 
-            const currentGroup = groups[dateKey] as Record<string, ArticleType[]>;
+            const currentGroup = groups[dateKey] as Record<string, Article[]>;
             if (!currentGroup[currentName]) {
                 currentGroup[currentName] = [];
             }
             currentGroup[currentName].push(article);
         } else {
-            (groups[dateKey] as ArticleType[]).push(article);
+            (groups[dateKey] as Article[]).push(article);
         }
     });
 
@@ -80,9 +81,9 @@ function groupArticlesByDate(articles: ArticleType[], currents: CurrentType[], i
         orderedCurrentNames.push('Uncategorized');
 
         for (const dateKey of ['Today', 'Yesterday', 'Older']) {
-            const temp = groups[dateKey] as Record<string, ArticleType[]>;
+            const temp = groups[dateKey] as Record<string, Article[]>;
             groups[dateKey] = {};
-            const newGroup = groups[dateKey] as Record<string, ArticleType[]>;
+            const newGroup = groups[dateKey] as Record<string, Article[]>;
             for (const name of orderedCurrentNames) {
                 if (temp[name]) {
                     newGroup[name] = temp[name];
@@ -253,8 +254,8 @@ export default function Home() {
 
     // Filter by unread if needed
     const filteredArticles = showUnreadOnly
-        ? ((riverArticles as ArticleType[]) || []).filter((art) => !readArticles?.includes(art.id))
-        : ((riverArticles as ArticleType[]) || []);
+        ? ((riverArticles as Article[]) || []).filter((art) => !readArticles?.includes(art.id))
+        : ((riverArticles as Article[]) || []);
 
     // Age-based filtering
     const sevenDaysAgo = new Date();
@@ -268,7 +269,7 @@ export default function Home() {
 
     // Determine which article array to show
     const isSavedTab = activeTab === 'saved';
-    const articles = isSavedTab ? (savedArticlesData as ArticleType[] || []) : visibleArticles;
+    const articles = isSavedTab ? (savedArticlesData as Article[] || []) : visibleArticles;
     const isLoadingArts = isSavedTab ? isLoadingSaved : status === 'pending';
 
     const groupedArticles = groupArticlesByDate(articles, currents || [], activeTab === 'river');
@@ -281,7 +282,7 @@ export default function Home() {
 
             // Show greeting if last seen was > 6 hours ago
             if ((now.getTime() - lastSeen.getTime()) > 6 * 60 * 60 * 1000) {
-                const recentArticles = ((riverArticles as ArticleType[]) || []).filter((a) => a.published_at && new Date(a.published_at) > lastSeen);
+                const recentArticles = ((riverArticles as Article[]) || []).filter((a) => a.published_at && new Date(a.published_at) > lastSeen);
                 // eslint-disable-next-line react-hooks/set-state-in-effect
                 setFetchedWhileAway(recentArticles.length);
                 // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -298,7 +299,8 @@ export default function Home() {
         }
     }, [loading, profile, riverArticles, updateProfile]);
 
-    if (loading) return null;
+    // Return Skeleton UI instead of returning null
+    if (loading) return <HomeSkeleton viewMode={viewMode} TABS={TABS} activeTab={activeTab} />;
     // Temporarily disable redirect for testing UI
     // if (!user) return <Navigate to="/login" replace />;
 
@@ -533,7 +535,11 @@ export default function Home() {
                 ) : (
                     <>
                         {isLoadingArts ? (
-                            <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                            <div className={clsx("w-full transition-all duration-500",
+                                viewMode === 'magazine' ? "grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16" : "space-y-12"
+                            )}>
+                                {[1, 2, 3, 4, 5, 6].map(i => <ArticleSkeleton key={i} viewMode={viewMode} />)}
+                            </div>
                         ) : articles.length === 0 ? (
                             <EmptyState
                                 icon={isSavedTab ? Bookmark : Wind}
@@ -567,9 +573,9 @@ export default function Home() {
                                         const isNested = activeTab === 'river' && !Array.isArray(groupData);
 
                                         if (isNested) {
-                                            if (Object.keys(groupData as Record<string, ArticleType[]>).length === 0) return null;
+                                            if (Object.keys(groupData as Record<string, Article[]>).length === 0) return null;
                                         } else {
-                                            if ((groupData as ArticleType[]).length === 0) return null;
+                                            if ((groupData as Article[]).length === 0) return null;
                                         }
 
                                         return (
@@ -581,7 +587,7 @@ export default function Home() {
 
                                                 {isNested ? (
                                                     <div className="space-y-16">
-                                                        {Object.entries(groupData as Record<string, ArticleType[]>).map(([currentName, arts]) => (
+                                                        {Object.entries(groupData as Record<string, Article[]>).map(([currentName, arts]) => (
                                                             <div key={currentName} className="space-y-8">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
@@ -608,7 +614,7 @@ export default function Home() {
                                                     <div className={clsx(
                                                         viewMode === 'magazine' ? "grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16" : "space-y-12"
                                                     )}>
-                                                        {(groupData as ArticleType[]).map((article) => (
+                                                        {(groupData as Article[]).map((article) => (
                                                             <ArticleItem
                                                                 key={article.id}
                                                                 article={article}
@@ -663,7 +669,7 @@ export default function Home() {
     );
 }
 
-function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: ArticleType, viewMode: 'list' | 'magazine', isRead: boolean, isSaved: boolean, onRead: () => void }) {
+function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: Article, viewMode: 'list' | 'magazine', isRead: boolean, isSaved: boolean, onRead: () => void }) {
     const itemRef = useRef(null);
     const { mutate: unmarkAsRead } = useUnmarkAsRead();
     const { mutate: toggleSave } = useToggleSave();
@@ -773,7 +779,7 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
                                 </span>
                             )}
                             {viewMode === 'magazine' && <span className="w-1 h-1 rounded-full bg-border" />}
-                            {viewMode === 'magazine' && <span className="opacity-60">5 min read</span>}
+                            {viewMode === 'magazine' && <span className="opacity-60">{article.read_time_minutes || 5} min read</span>}
                         </div>
 
                         <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover/link:opacity-100 transition-opacity">
@@ -809,5 +815,92 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
                 </div>
             </Link>
         </motion.article>
+    );
+}
+
+function HomeSkeleton({ viewMode, TABS, activeTab }: { viewMode: 'list' | 'magazine', TABS: { id: string, label: string, icon: any }[], activeTab: string }) {
+    return (
+        <div className={clsx(
+            "mx-auto min-h-screen px-4 font-serif transition-all duration-500",
+            viewMode === 'magazine' ? "max-w-[1240px]" : "max-w-3xl"
+        )}>
+            <header className="sticky top-0 bg-background/90 backdrop-blur-xl z-20 pt-12 pb-6 flex items-center justify-between gap-4">
+                <div className="flex bg-card items-center rounded-3xl p-1 shadow-sm border border-border/50 overflow-x-auto shrink-0 max-w-[calc(100vw-140px)] sm:max-w-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {TABS.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <div key={tab.id} className={clsx(
+                                'flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-2xl text-xs md:text-sm font-medium transition-all font-sans whitespace-nowrap opacity-50',
+                                isActive ? 'bg-background text-foreground shadow-sm ring-1 ring-border/50' : 'text-muted-foreground'
+                            )}>
+                                <Icon className="w-4 h-4" />
+                                {isActive && <span>{tab.label}</span>}
+                            </div>
+                        );
+                    })}
+                </div>
+                {/* Fake action bar */}
+                <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-full bg-muted/30 animate-pulse border border-border/50" />
+                    <div className="w-[100px] h-10 rounded-full bg-muted/30 animate-pulse border border-border/50" />
+                    <div className="w-10 h-10 rounded-full bg-muted/30 animate-pulse border border-border/50" />
+                    <div className="w-10 h-10 rounded-full bg-muted/30 animate-pulse border border-border/50" />
+                </div>
+            </header>
+            <main className={clsx("pb-24 mt-4 transition-all duration-500", viewMode === 'magazine' ? "w-full" : "max-w-[480px] mx-auto space-y-12")}>
+                <div className={clsx("w-full transition-all duration-500",
+                    viewMode === 'magazine' ? "grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16" : "space-y-12"
+                )}>
+                    {[1, 2, 3, 4, 5, 6].map(i => <ArticleSkeleton key={i} viewMode={viewMode} />)}
+                </div>
+            </main>
+        </div>
+    );
+}
+
+function ArticleSkeleton({ viewMode }: { viewMode: 'list' | 'magazine' }) {
+    return (
+        <div className={clsx("block transition-all duration-500",
+            viewMode === 'magazine' ? "grid grid-cols-[100px,1fr] sm:grid-cols-[140px,1fr] lg:grid-cols-[180px,1fr] gap-4 md:gap-6" : "space-y-4"
+        )}>
+            {/* Image Skeleton */}
+            <div className={clsx("relative flex-shrink-0 rounded-2xl bg-muted/50 animate-pulse",
+                viewMode === 'magazine'
+                    ? "aspect-[4/3] sm:aspect-square sm:order-1 max-h-32 sm:max-h-none mb-0 w-[100px] sm:w-[140px] md:w-full"
+                    : "aspect-[16/9] mb-4"
+            )} />
+
+            {/* Content Skeleton */}
+            <div className={clsx("flex flex-col min-w-0", viewMode === 'magazine' && "sm:order-2")}>
+                {/* Upper meta block */}
+                <div className="flex items-center gap-2 mb-3">
+                    <div className="w-4 h-4 rounded-full bg-muted/80 animate-pulse" />
+                    <div className="h-2 w-20 bg-muted/80 animate-pulse rounded" />
+                </div>
+
+                {/* Title */}
+                <div className="space-y-2 mb-3">
+                    <div className="h-6 bg-muted/80 animate-pulse rounded w-full" />
+                    <div className="h-6 bg-muted/80 animate-pulse rounded w-3/4" />
+                </div>
+
+                {/* Excerpt */}
+                <div className="space-y-2 pt-2 mb-3">
+                    <div className="h-3 bg-muted/50 animate-pulse rounded w-full" />
+                    <div className="h-3 bg-muted/50 animate-pulse rounded w-[90%]" />
+                    <div className="h-3 bg-muted/50 animate-pulse rounded w-2/3" />
+                </div>
+
+                {/* Lower meta block */}
+                <div className="pt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="h-2 w-16 bg-muted/50 animate-pulse rounded" />
+                        {viewMode === 'magazine' && <span className="w-1 h-1 rounded-full bg-border" />}
+                        {viewMode === 'magazine' && <div className="h-2 w-12 bg-muted/50 animate-pulse rounded" />}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }

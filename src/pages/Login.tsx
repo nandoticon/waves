@@ -23,7 +23,7 @@ export default function Login() {
     // Prevent logged-in users from seeing the login page
     useEffect(() => {
         if (user) {
-            const from = (location.state as any)?.from?.pathname || '/';
+            const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
             navigate(from, { replace: true });
         }
     }, [user, navigate, location]);

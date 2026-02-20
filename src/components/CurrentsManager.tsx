@@ -15,9 +15,14 @@ export function CurrentsManager() {
 
     useEffect(() => {
         if (currentsData) {
-            setLocalCurrents(currentsData);
+            // Only update if the IDs have changed to avoid cascading renders
+            const currentIds = localCurrents.map(c => c.id).join(',');
+            const newIds = currentsData.map((c: { id: string }) => c.id).join(',');
+            if (currentIds !== newIds) {
+                setLocalCurrents(currentsData);
+            }
         }
-    }, [currentsData]);
+    }, [currentsData, localCurrents]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

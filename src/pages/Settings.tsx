@@ -179,7 +179,7 @@ export default function Settings() {
                                 {THEMES.map((t) => (
                                     <button
                                         key={t.id}
-                                        onClick={() => setTheme(t.id as any)}
+                                        onClick={() => setTheme(t.id as Parameters<typeof setTheme>[0])}
                                         className={clsx(
                                             'w-full flex items-center justify-between p-4 rounded-3xl text-left transition-all group border',
                                             theme === t.id

@@ -7,7 +7,7 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // 1. Handle CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      await Promise.all(batch.map(async (article) => {
+      await Promise.all(batch.map(async (article: { url: string; id: string }) => {
         if (!article.url || !article.id) return;
 
         try {
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
           const doc = new DOMParser().parseFromString(html, 'text/html');
 
           // Use readability to extract content
-          const reader = new Readability(doc as any);
+          const reader = new Readability(doc as unknown as Document);
           const articleData = reader.parse();
 
           if (articleData && articleData.content) {
@@ -88,8 +88,8 @@ Deno.serve(async (req) => {
           } else {
             console.log(`Readability could not extract content for: ${article.url}`);
           }
-        } catch (err) {
-          console.error(`Error processing ${article.url}:`, err.message);
+        } catch (err: unknown) {
+          console.error(`Error processing ${article.url}:`, err instanceof Error ? err.message : err);
         }
       }));
     }
@@ -102,9 +102,9 @@ Deno.serve(async (req) => {
       status: 200,
     });
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Extraction error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }), {
       headers: { ...headers, 'Content-Type': 'application/json' },
       status: 400,
     });

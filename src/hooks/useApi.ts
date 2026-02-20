@@ -2,6 +2,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
+export interface Article {
+    id: string;
+    title: string;
+    excerpt: string;
+    content?: string;
+    author: string | null;
+    published_at: string;
+    url: string;
+    image_url: string | null;
+    read_time_minutes?: number;
+    feeds: {
+        title: string;
+        icon_url: string | null;
+        url?: string | null;
+        subscriptions?: {
+            current_id: string | null;
+            user_id: string;
+        }[];
+    };
+}
+
 export function useCurrents() {
     const { user } = useAuth();
 
@@ -97,11 +118,22 @@ export function useArticles(currentId?: string, page: number = 0) {
 
             if (error) throw error;
 
-            // Ensure content is excerpted safely
-            return data.map((article: Record<string, unknown> & { excerpt?: string }) => ({
-                ...article,
-                excerpt: article.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
-            }));
+            // Ensure content is excerpted safely and calculate read time
+            return (data || []).map((article) => {
+                const fullText = (article as any).excerpt || '';
+                // basic word count approximation
+                const wordCount = fullText.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
+                const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
+
+                const feeds = Array.isArray(article.feeds) ? article.feeds[0] : article.feeds;
+
+                return {
+                    ...article,
+                    feeds,
+                    read_time_minutes: readTimeMinutes,
+                    excerpt: fullText ? fullText.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
+                } as unknown as Article;
+            });
         },
         enabled: !!user,
     });
@@ -133,12 +165,14 @@ export function useSavedArticles() {
                 .order('id', { ascending: false });
 
             if (error) throw error;
-            return data.map((s: Record<string, unknown> & { articles: unknown }) => {
-                const article = s.articles as Record<string, unknown> & { excerpt?: string };
+            return (data || []).map((s) => {
+                const article = s.articles as any;
+                const feeds = Array.isArray(article.feeds) ? article.feeds[0] : article.feeds;
                 return {
                     ...article,
+                    feeds,
                     excerpt: article?.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
-                } as Record<string, any>;
+                } as Article;
             });
         },
         enabled: !!user,
@@ -506,7 +540,7 @@ export function useArticle(id?: string) {
             return {
                 ...data,
                 feeds: Array.isArray(data.feeds) ? data.feeds[0] : data.feeds
-            } as Record<string, any>;
+            } as Article;
         },
         enabled: !!id && !!user
     });

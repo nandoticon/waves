@@ -25,8 +25,8 @@ export default function UpdatePassword() {
             setTimeout(() => {
                 navigate('/');
             }, 2000);
-        } catch (err: any) {
-            setErrorMsg(err.message || 'An error occurred while updating your password.');
+        } catch (err: unknown) {
+            setErrorMsg(err instanceof Error ? err.message : 'An error occurred while updating your password.');
         } finally {
             setLoading(false);
         }
