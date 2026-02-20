@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* System Light Variant (Bright) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --border: 214.3 31.8% 91.4%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+  }
+
+  .dark {
+    /* Midnight Dark Variant */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 95%;
+    --border: 0 0% 15%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 0 0% 98%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 65%;
+  }
+
+  /* Theme Overrides via data-theme attribute */
+  [data-theme="ocean"] {
+    --primary: 180 80% 40%;
+    --background: 180 10% 98%;
+  }
+
+  .dark[data-theme="ocean"] {
+    --primary: 180 80% 40%;
+    --background: 180 20% 5%;
+    --card: 180 20% 10%;
+  }
+
+  [data-theme="ember"] {
+    --primary: 0 70% 50%;
+    --background: 0 10% 98%;
+  }
+
+  .dark[data-theme="ember"] {
+    --primary: 0 70% 50%;
+    --background: 0 20% 5%;
+    --card: 0 20% 10%;
+  }
+
+  [data-theme="paper"] {
+    --background: 40 30% 96%;
+    --foreground: 30 20% 20%;
+    --card: 40 30% 98%;
+    --card-foreground: 30 20% 20%;
+    --border: 40 20% 85%;
+    --primary: 35 60% 50%;
+    --muted: 40 20% 90%;
+    --muted-foreground: 30 10% 40%;
+  }
+
+  .dark[data-theme="paper"] {
+    --background: 30 10% 15%;
+    --foreground: 40 30% 85%;
+    --card: 30 15% 18%;
+    --card-foreground: 40 30% 85%;
+    --border: 30 10% 25%;
+    --primary: 35 60% 50%;
+    --muted: 30 10% 20%;
+    --muted-foreground: 40 10% 60%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    @apply tracking-tight;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
