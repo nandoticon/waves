@@ -67,6 +67,8 @@ export default function Home() {
     const [showMarkDropdown, setShowMarkDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const { mutate: flushOldArticles } = useFlushOldArticles();
+    const [page, setPage] = useState(0);
+    const [showOlderArticles, setShowOlderArticles] = useState(false);
 
     // Weekly Cleanup Trigger
     useEffect(() => {
@@ -75,7 +77,7 @@ export default function Home() {
         const oneWeek = 7 * 24 * 60 * 60 * 1000;
 
         if (!lastFlush || (now - parseInt(lastFlush)) > oneWeek) {
-            flushOldArticles(undefined, {
+            flushOldArticles(60, {
                 onSuccess: () => {
                     localStorage.setItem('waves_last_flush', now.toString());
                 }
@@ -94,17 +96,59 @@ export default function Home() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Flush old articles on mount (e.g., after 60 days)
+    useEffect(() => {
+        flushOldArticles(60);
+    }, []);
+
+    // Reset page on filter/tab change
+    useEffect(() => {
+        setPage(0);
+        setShowOlderArticles(false);
+    }, [activeTab, showUnreadOnly]);
+
+    // Scroll to top on page change
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [page]);
+
     // Persist viewMode
     useEffect(() => {
         localStorage.setItem('waves_view_mode', viewMode);
     }, [viewMode]);
+
+    const [showHeader, setShowHeader] = useState(true);
+    const lastScrollY = useRef(0);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+
+            // Always show at the top
+            if (currentScrollY < 10) {
+                setShowHeader(true);
+            } else {
+                // Show if scrolling up, hide if scrolling down
+                if (currentScrollY < lastScrollY.current) {
+                    setShowHeader(true);
+                } else if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+                    setShowHeader(false);
+                }
+            }
+
+            lastScrollY.current = currentScrollY;
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     // Filter logic
     const isSpecialTab = ['river', 'saved', 'voices'].includes(activeTab);
     const currentIdFilter = activeTab === 'river' ? 'all' : (isSpecialTab ? undefined : activeTab);
 
     // Fetch River/Current articles
-    const { data: articlesData, fetchNextPage, hasNextPage, isFetchingNextPage, status } = useArticles(currentIdFilter || 'none');
+    const { data: riverArticles, status } = useArticles(currentIdFilter || 'none', page);
 
     // Fetch Saved articles
     const { data: savedArticlesData, isLoading: isLoadingSaved } = useSavedArticles();
@@ -119,40 +163,27 @@ export default function Home() {
         STATIC_TABS[2]
     ];
 
-    // Flatten infinite query page arrays into a single article array for river
-    const riverArticles = articlesData?.pages.flatMap(page => page) || [];
-
     // Filter by unread if needed
     const filteredArticles = showUnreadOnly
-        ? riverArticles.filter(art => !readArticles?.includes(art.id))
-        : riverArticles;
+        ? (riverArticles || []).filter((art: any) => !readArticles?.includes(art.id))
+        : (riverArticles || []);
+
+    // Age-based filtering
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const hasOlderArticles = filteredArticles.some((art: any) => new Date(art.published_at) < sevenDaysAgo);
+
+    const visibleArticles = showOlderArticles
+        ? filteredArticles
+        : filteredArticles.filter((art: any) => new Date(art.published_at) >= sevenDaysAgo);
 
     // Determine which article array to show
     const isSavedTab = activeTab === 'saved';
-    const articles = isSavedTab ? (savedArticlesData || []) : filteredArticles;
+    const articles = isSavedTab ? (savedArticlesData || []) : visibleArticles;
     const isLoadingArts = isSavedTab ? isLoadingSaved : status === 'pending';
 
     const groupedArticles = groupArticlesByDate(articles, currents || [], activeTab === 'river');
-
-    // Intersection Observer ref for infinite scrolling
-    const loadMoreRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-                    fetchNextPage();
-                }
-            },
-            { threshold: 0.1 }
-        );
-
-        if (loadMoreRef.current) {
-            observer.observe(loadMoreRef.current);
-        }
-
-        return () => observer.disconnect();
-    }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
     if (loading) return null;
     // Temporarily disable redirect for testing UI
@@ -163,7 +194,15 @@ export default function Home() {
             "mx-auto min-h-screen px-4 font-serif transition-all duration-500",
             viewMode === 'magazine' ? "max-w-[1240px]" : "max-w-3xl"
         )}>
-            <header className="sticky top-0 bg-background/90 backdrop-blur-xl z-20 pt-12 pb-6 flex items-center justify-between">
+            <motion.header
+                initial={false}
+                animate={{
+                    y: showHeader ? 0 : -100,
+                    opacity: showHeader ? 1 : 0
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="sticky top-0 bg-background/90 backdrop-blur-xl z-20 pt-12 pb-6 flex items-center justify-between"
+            >
 
                 {/* Navigation Tabs */}
                 <div className="flex bg-card items-center rounded-3xl p-1 shadow-sm border border-border/50">
@@ -282,7 +321,7 @@ export default function Home() {
                         <SettingsIcon className="w-4 h-4" />
                     </Link>
                 </div>
-            </header>
+            </motion.header>
 
             <main className={clsx(
                 "pb-24 mt-4 transition-all duration-500",
@@ -318,6 +357,24 @@ export default function Home() {
                                 icon={isSavedTab ? Bookmark : Wind}
                                 title={isSavedTab ? "No saved articles" : "A quiet river"}
                                 description={isSavedTab ? "Articles you bookmark will appear right here for reading later." : "There are no articles to show. Subscribe to a few feeds to let knowledge flow in."}
+                                action={!isSavedTab && (
+                                    <button
+                                        onClick={() => {
+                                            const promise = syncFeeds();
+                                            // Handle feedback
+                                            promise.then((res: any) => {
+                                                alert(`Fetched ${res.count} articles`);
+                                            }).catch(() => {
+                                                alert('Failed to sync feeds');
+                                            });
+                                        }}
+                                        disabled={isSyncing}
+                                        className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-2xl hover:scale-105 transition-all disabled:opacity-50 font-sans font-bold shadow-lg shadow-primary/20"
+                                    >
+                                        {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        Update Feeds
+                                    </button>
+                                )}
                                 className="my-12"
                             />
                         ) : (
@@ -387,9 +444,34 @@ export default function Home() {
                                 </div>
                             </AnimatePresence>
                         )}
-                        {!isSavedTab && (
-                            <div ref={loadMoreRef} className="h-10 flex items-center justify-center">
-                                {isFetchingNextPage && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
+                        {!showOlderArticles && !isSavedTab && hasOlderArticles && (
+                            <div className="flex justify-center py-8">
+                                <button
+                                    onClick={() => setShowOlderArticles(true)}
+                                    className="px-6 py-3 rounded-2xl bg-muted/30 border border-border/50 text-xs font-sans font-black tracking-widest uppercase hover:bg-muted hover:text-foreground transition-all"
+                                >
+                                    Show articles older than 7 days
+                                </button>
+                            </div>
+                        )}
+                        {!isSavedTab && riverArticles && riverArticles.length >= 30 && (
+                            <div className="flex justify-center items-center gap-6 py-12">
+                                <button
+                                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                                    disabled={page === 0}
+                                    className="px-6 py-3 rounded-2xl bg-muted/30 border border-border/50 text-sm font-sans font-bold hover:bg-muted transition-all disabled:opacity-30"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-xs font-sans font-black tracking-widest text-muted-foreground/60 uppercase">
+                                    Page {page + 1}
+                                </span>
+                                <button
+                                    onClick={() => setPage(p => p + 1)}
+                                    className="px-8 py-4 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 text-sm font-sans font-bold hover:scale-105 transition-all"
+                                >
+                                    Show More
+                                </button>
                             </div>
                         )}
                     </>

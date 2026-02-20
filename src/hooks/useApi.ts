@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
@@ -30,34 +30,37 @@ export function useFeeds() {
             if (!user) return [];
 
             const { data, error } = await supabase
-                .from('subscriptions')
-                .select(`
-          feed_id,
-          current_id,
-          feeds (
-            id,
-            title,
-            url,
-            icon_url
-          )
-        `);
+                .rpc('get_feeds_with_last_article', { user_id_param: user.id });
 
             if (error) throw error;
-            return data;
+
+            // Transform data to match the expected structure if necessary
+            // The RPC returns { feed_id, current_id, title, url, icon_url, last_article_at }
+            return data.map((item: any) => ({
+                feed_id: item.feed_id,
+                current_id: item.current_id,
+                feeds: {
+                    id: item.feed_id,
+                    title: item.title,
+                    url: item.url,
+                    icon_url: item.icon_url,
+                    last_article_at: item.last_article_at
+                }
+            }));
         },
         enabled: !!user,
     });
 }
 
-export function useArticles(currentId?: string) {
+export function useArticles(currentId?: string, page: number = 0) {
     const { user } = useAuth();
 
-    return useInfiniteQuery({
-        queryKey: ['articles', user?.id, currentId],
-        queryFn: async ({ pageParam = 0 }) => {
+    return useQuery({
+        queryKey: ['articles', user?.id, currentId, page],
+        queryFn: async () => {
             if (!user) return [];
 
-            const pageSize = 20;
+            const pageSize = 30;
 
             let query = supabase
                 .from('articles')
@@ -80,7 +83,7 @@ export function useArticles(currentId?: string) {
         `)
                 .eq('feeds.subscriptions.user_id', user.id)
                 .order('published_at', { ascending: false })
-                .range(pageParam * pageSize, (pageParam + 1) * pageSize - 1);
+                .range(page * pageSize, (page + 1) * pageSize - 1);
 
             if (currentId && currentId !== 'all') {
                 if (currentId === 'none') {
@@ -100,10 +103,6 @@ export function useArticles(currentId?: string) {
                 excerpt: article.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
             }));
         },
-        getNextPageParam: (lastPage, allPages) => {
-            return lastPage.length === 20 ? allPages.length : undefined;
-        },
-        initialPageParam: 0,
         enabled: !!user,
     });
 }
@@ -252,18 +251,56 @@ export function useAddFeed() {
     });
 }
 
+export function useOldArticlesCount(days: number = 30) {
+    const { user } = useAuth();
+
+    return useQuery({
+        queryKey: ['old_articles_count', user?.id, days],
+        queryFn: async () => {
+            if (!user) return 0;
+
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+
+            // 1. Get IDs of saved articles for this user
+            const { data: savedData } = await supabase
+                .from('saved_articles')
+                .select('article_id')
+                .eq('user_id', user.id);
+
+            const savedIds = savedData?.map(s => s.article_id) || [];
+
+            // 2. Count articles older than X days NOT in savedIds
+            let query = supabase
+                .from('articles')
+                .select('*', { count: 'exact', head: true })
+                .lt('published_at', cutoffDate.toISOString());
+
+            if (savedIds.length > 0) {
+                query = query.not('id', 'in', `(${savedIds.join(',')})`);
+            }
+
+            const { count, error } = await query;
+
+            if (error) throw error;
+            return count || 0;
+        },
+        enabled: !!user,
+    });
+}
+
 export function useFlushOldArticles() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async () => {
+        mutationFn: async (days: number = 60) => {
             if (!user) return;
 
             const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - 60);
+            cutoffDate.setDate(cutoffDate.getDate() - days);
 
-            // 1. Find articles older than 60 days
+            // 1. Find articles older than X days
             const { data: oldArticles, error: fetchError } = await supabase
                 .from('articles')
                 .select('id')
@@ -295,6 +332,7 @@ export function useFlushOldArticles() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['articles'] });
+            queryClient.invalidateQueries({ queryKey: ['old_articles_count'] });
         }
     });
 }
@@ -319,6 +357,7 @@ export function useSyncFeeds() {
             if (subsError) throw subsError;
 
             const feeds = subs.map(s => s.feeds).filter(Boolean);
+            let totalNewArticles = 0;
 
             // For simplicity, fetch all sequentially. In prod, do via edge function worker.
             for (const feed of feeds) {
@@ -341,9 +380,14 @@ export function useSyncFeeds() {
                         }));
 
                         if (articlesToInsert.length > 0) {
-                            await supabase
+                            const { data: insertedData, error: upsertError } = await supabase
                                 .from('articles')
-                                .upsert(articlesToInsert, { onConflict: 'url' });
+                                .upsert(articlesToInsert, { onConflict: 'url' })
+                                .select('id');
+
+                            if (!upsertError && insertedData) {
+                                totalNewArticles += insertedData.length;
+                            }
                         }
 
                         await supabase.from('feeds').update({ last_fetched_at: new Date().toISOString() }).eq('id', feed_id);
@@ -352,11 +396,13 @@ export function useSyncFeeds() {
                     console.error('Failed to sync feed', feed, err);
                 }
             }
+            return { count: totalNewArticles };
         },
         onSettled: () => {
-            flushOldArticles();
+            flushOldArticles(60);
             queryClient.invalidateQueries({ queryKey: ['articles'] });
             queryClient.invalidateQueries({ queryKey: ['feeds'] });
+            queryClient.invalidateQueries({ queryKey: ['old_articles_count'] }); // Invalidate old_articles_count after flushing
         }
     });
 }
