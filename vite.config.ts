@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.webp', 'apple-touch-icon.png', 'logo.svg'],
+      includeAssets: ['favicon.webp', 'apple-touch-icon.png'],
       manifest: {
         name: 'Waves RSS Reader',
         short_name: 'Waves',
