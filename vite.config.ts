@@ -10,22 +10,23 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.webp', 'apple-touch-icon.png', 'logo.svg'],
       manifest: {
         name: 'Waves RSS Reader',
         short_name: 'Waves',
         description: 'A beautiful, personal space for reading the web.',
-        theme_color: '#ffffff',
+        theme_color: '#020617',
+        background_color: '#020617',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'icon-192.webp',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/webp'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'icon-512.webp',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/webp',
             purpose: 'any maskable'
           }
         ]
