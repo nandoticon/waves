@@ -1,0 +1,22 @@
+src/pages/Home.tsx(599,120): error TS2339: Property 'id' does not exist on type '{ excerpt: string; }'.
+src/pages/Home.tsx(617,108): error TS2339: Property 'id' does not exist on type '{ excerpt: string; }'.
+src/pages/Reader.tsx(42,39): error TS2339: Property 'match' does not exist on type '{}'.
+src/pages/Reader.tsx(46,49): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | Node'.
+src/pages/Reader.tsx(52,21): error TS2322: Type 'unknown' is not assignable to type 'string | undefined'.
+src/pages/Reader.tsx(53,21): error TS2322: Type 'unknown' is not assignable to type 'string | undefined'.
+src/pages/Reader.tsx(60,43): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+src/pages/Reader.tsx(91,37): error TS2339: Property 'icon_url' does not exist on type '{}'.
+src/pages/Reader.tsx(92,49): error TS2339: Property 'icon_url' does not exist on type '{}'.
+src/pages/Reader.tsx(96,37): error TS2339: Property 'title' does not exist on type '{}'.
+src/pages/Reader.tsx(96,54): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string | URL'.
+src/pages/Reader.tsx(114,21): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/Reader.tsx(118,21): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/pages/Reader.tsx(118,99): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+src/pages/Reader.tsx(120,58): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number'.
+src/pages/Reader.tsx(145,25): error TS2322: Type 'unknown' is not assignable to type 'string | undefined'.

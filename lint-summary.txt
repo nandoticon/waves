@@ -1,0 +1,87 @@
+C:\Users\nando\Documents\GitHub\personal\waves\src\components\CurrentsManager.tsx - 2 errors
+  Line 14: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 18: Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\nando\Documents\GitHub\personal\waves\src\components\CurrentsManager.tsx:18:13
+  16 |     useEffect(() => {
+  17 |         if (currentsData) {
+> 18 |             setLocalCurrents(currentsData);
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  19 |         }
+  20 |     }, [currentsData]);
+  21 | (react-hooks/set-state-in-effect)
+C:\Users\nando\Documents\GitHub\personal\waves\src\components\FeedManager.tsx - 5 errors
+  Line 28: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 28: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 28: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 38: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 51: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\hooks\useApi.ts - 10 errors
+  Line 39: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 101: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 136: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 137: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 227: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 400: Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free. (@typescript-eslint/ban-ts-comment)
+  Line 408: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 509: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 549: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 668: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\lib\auth.tsx - 1 errors
+  Line 33: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components. (react-refresh/only-export-components)
+C:\Users\nando\Documents\GitHub\personal\waves\src\lib\theme.tsx - 1 errors
+  Line 47: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components. (react-refresh/only-export-components)
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\Home.tsx - 16 errors
+  Line 38: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 38: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 44: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 75: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 75: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 176: React Hook useEffect has a missing dependency: 'flushOldArticles'. Either include it or remove the dependency array. (react-hooks/exhaustive-deps)
+  Line 250: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 257: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 261: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 278: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 279: Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\Home.tsx:279:17
+  277 |             if ((now.getTime() - lastSeen.getTime()) > 6 * 60 * 60 * 1000) {
+  278 |                 const recentArticles = (riverArticles || []).filter((a: any) => new Date(a.published_at) > lastSeen);
+> 279 |                 setFetchedWhileAway(recentArticles.length);
+      |                 ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  280 |                 setShowGreeting(true);
+  281 |
+  282 |                 // Keep the greeting visible for 10 seconds unless dismissed manually (react-hooks/set-state-in-effect)
+  Line 539: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 576: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 585: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 603: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 603: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 658: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\Login.tsx - 3 errors
+  Line 26: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 57: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+  Line 66: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\Reader.tsx - 1 errors
+  Line 22: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\Settings.tsx - 1 errors
+  Line 182: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\src\pages\UpdatePassword.tsx - 1 errors
+  Line 28: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\supabase\functions\cron-sync\index.ts - 2 errors
+  Line 19: 'req' is defined but never used. (@typescript-eslint/no-unused-vars)
+  Line 110: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)
+C:\Users\nando\Documents\GitHub\personal\waves\supabase\functions\extract-article\index.ts - 1 errors
+  Line 68: Unexpected any. Specify a different type. (@typescript-eslint/no-explicit-any)

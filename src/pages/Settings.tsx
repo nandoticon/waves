@@ -1,3 +1,4 @@
+import React from 'react';
 import { useTheme } from '../lib/theme';
 import { useFlushOldArticles, useOldArticlesCount } from '../hooks/useApi';
 import { ChevronLeft, Sun, Monitor, Trash2, Loader2, Layers, Rss } from 'lucide-react';
@@ -5,6 +6,24 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { CurrentsManager } from '../components/CurrentsManager';
 import { FeedManager } from '../components/FeedManager';
+import { useProfile, useUpdateProfile } from '../hooks/useApi';
+
+const PRONOUN_OPTIONS = [
+    { value: 'they/them', label: 'They/Them' },
+    { value: 'she/her', label: 'She/Her' },
+    { value: 'he/him', label: 'He/Him' },
+    { value: 'it/its', label: 'It/Its' },
+    { value: 'she/they', label: 'She/They' },
+    { value: 'he/they', label: 'He/They' },
+    { value: 'any', label: 'Any Pronouns' },
+    { value: '', label: 'Prefer not to say' }
+];
+
+const SYNC_OPTIONS = [
+    { value: 6, label: 'Every 6 hours' },
+    { value: 12, label: 'Every 12 hours' },
+    { value: 24, label: 'Every 24 hours' }
+];
 
 const THEMES = [
     { id: 'bright', name: 'Bright', desc: 'Clean and airy, vibrant accent', colors: ['bg-blue-500', 'bg-slate-900'] },
@@ -20,6 +39,32 @@ export default function Settings() {
     const { appearance, theme, setAppearance, setTheme } = useTheme();
     const { mutate: flushArticles, isPending: isFlushing } = useFlushOldArticles();
     const { data: oldArticlesCount, isLoading: isLoadingCount } = useOldArticlesCount(30);
+    const { data: profile } = useProfile();
+    const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateProfile();
+    const [profileForm, setProfileForm] = React.useState({ name: '', pronouns: '', sync_interval: 24 });
+    const [hasChanges, setHasChanges] = React.useState(false);
+
+    React.useEffect(() => {
+        if (profile) {
+            setProfileForm({
+                name: profile.name || '',
+                pronouns: profile.pronouns || '',
+                sync_interval: profile.sync_interval || 24
+            });
+        }
+    }, [profile]);
+
+    const handleProfileSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await updateProfile(profileForm);
+            setHasChanges(false);
+            alert('Profile saved successfully!');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to save profile');
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground animate-in fade-in duration-500">
@@ -63,6 +108,66 @@ export default function Settings() {
                             <p className="px-2 mt-4 text-xs leading-relaxed text-muted-foreground/60 font-medium italic">
                                 Choose how WAVES appears on your device.
                             </p>
+                        </section>
+
+                        <section className="pt-8 border-t border-border/10">
+                            <form onSubmit={handleProfileSubmit} className="space-y-6">
+                                <div className="flex items-center justify-between mb-6 px-1">
+                                    <div className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-muted-foreground uppercase">
+                                        <Layers className="w-3.5 h-3.5" />
+                                        Profile Settings
+                                    </div>
+                                    {hasChanges && (
+                                        <button
+                                            type="submit"
+                                            disabled={isUpdatingProfile}
+                                            className="px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold transition-all hover:bg-primary/90 disabled:opacity-50"
+                                        >
+                                            {isUpdatingProfile ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save Changes'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4 bg-card rounded-3xl border border-border/60 p-5 shadow-sm">
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-2">Display Name</label>
+                                        <input
+                                            type="text"
+                                            value={profileForm.name}
+                                            onChange={(e) => { setProfileForm({ ...profileForm, name: e.target.value }); setHasChanges(true); }}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                                            placeholder="How should we greet you?"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-muted-foreground mb-2">Pronouns</label>
+                                        <select
+                                            value={profileForm.pronouns}
+                                            onChange={(e) => { setProfileForm({ ...profileForm, pronouns: e.target.value }); setHasChanges(true); }}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm appearance-none"
+                                        >
+                                            <option value="" disabled>Select your pronouns</option>
+                                            {PRONOUN_OPTIONS.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-border/10">
+                                        <label className="block text-xs font-bold text-muted-foreground mb-2">Background Sync Interval</label>
+                                        <select
+                                            value={profileForm.sync_interval}
+                                            onChange={(e) => { setProfileForm({ ...profileForm, sync_interval: Number(e.target.value) }); setHasChanges(true); }}
+                                            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm appearance-none"
+                                        >
+                                            {SYNC_OPTIONS.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-2 text-xs text-muted-foreground/60 italic">How often WAVES should fetch new articles automatically.</p>
+                                    </div>
+                                </div>
+                            </form>
                         </section>
 
                         <section>

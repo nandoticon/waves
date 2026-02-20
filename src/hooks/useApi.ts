@@ -36,7 +36,7 @@ export function useFeeds() {
 
             // Transform data to match the expected structure if necessary
             // The RPC returns { feed_id, current_id, title, url, icon_url, last_article_at }
-            return data.map((item: any) => ({
+            return data.map((item: { feed_id: string, current_id: string, title?: string, url?: string, icon_url?: string, last_article_at?: string }) => ({
                 feed_id: item.feed_id,
                 current_id: item.current_id,
                 feeds: {
@@ -98,7 +98,7 @@ export function useArticles(currentId?: string, page: number = 0) {
             if (error) throw error;
 
             // Ensure content is excerpted safely
-            return data.map((article: any) => ({
+            return data.map((article: Record<string, unknown> & { excerpt?: string }) => ({
                 ...article,
                 excerpt: article.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
             }));
@@ -133,12 +133,12 @@ export function useSavedArticles() {
                 .order('id', { ascending: false });
 
             if (error) throw error;
-            return data.map((s: any) => {
-                const article = s.articles as any;
+            return data.map((s: Record<string, unknown> & { articles: unknown }) => {
+                const article = s.articles as Record<string, unknown> & { excerpt?: string };
                 return {
                     ...article,
                     excerpt: article?.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
-                };
+                } as Record<string, any>;
             });
         },
         enabled: !!user,
@@ -224,22 +224,30 @@ export function useAddFeed() {
             }
 
             // 4. Upsert Articles (latest 50)
-            const articlesToInsert = (parsedFeed.items || []).slice(0, 50).map((item: any) => ({
+            const articlesToInsert = (parsedFeed.items || []).slice(0, 50).map((item: { title?: string, link?: string, imageUrl?: string, content?: string, contentEncoded?: string, contentSnippet?: string, creator?: string, author?: string, isoDate?: string, pubDate?: string }) => ({
                 feed_id: feedData.id,
                 title: item.title?.substring(0, 255) || 'Untitled',
                 url: item.link,
                 image_url: item.imageUrl || null,
                 content: item.content || item.contentEncoded || item.contentSnippet || '',
                 author: item.creator || item.author || '',
-                published_at: item.isoDate || item.pubDate ? new Date(item.isoDate || item.pubDate).toISOString() : new Date().toISOString()
+                published_at: item.isoDate || item.pubDate ? new Date(item.isoDate || item.pubDate || '').toISOString() : new Date().toISOString()
             }));
 
             if (articlesToInsert.length > 0) {
-                const { error: articlesError } = await supabase
+                const { data: insertedArticles, error: articlesError } = await supabase
                     .from('articles')
-                    .upsert(articlesToInsert, { onConflict: 'url' });
+                    .upsert(articlesToInsert, { onConflict: 'url' })
+                    .select('id, url');
 
-                if (articlesError) console.error('Error upserting articles:', articlesError);
+                if (articlesError) {
+                    console.error('Error upserting articles:', articlesError);
+                } else if (insertedArticles && insertedArticles.length > 0) {
+                    // Trigger full text extraction asynchronously
+                    supabase.functions.invoke('extract-article', {
+                        body: { articles: insertedArticles }
+                    }).catch(err => console.error('Failed to trigger extract-article:', err));
+                }
             }
 
             return feedData;
@@ -337,13 +345,37 @@ export function useFlushOldArticles() {
     });
 }
 
+export function useLastSyncTime() {
+    const { user } = useAuth();
+    return useQuery({
+        queryKey: ['last_sync', user?.id],
+        queryFn: async () => {
+            if (!user) return null;
+            const { data, error } = await supabase
+                .from('feeds')
+                .select(`
+                    last_fetched_at,
+                    subscriptions!inner (user_id)
+                `)
+                .eq('subscriptions.user_id', user.id)
+                .order('last_fetched_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (error) throw error;
+            return data?.last_fetched_at || null;
+        },
+        enabled: !!user,
+    });
+}
+
 export function useSyncFeeds() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const { mutate: flushOldArticles } = useFlushOldArticles();
 
     return useMutation({
-        mutationFn: async () => {
+        mutationFn: async ({ onProgress }: { onProgress?: (current: number, total: number) => void } = {}) => {
             if (!user) throw new Error("Must be logged in to sync feeds");
 
             // Fetch user's feeds
@@ -358,10 +390,14 @@ export function useSyncFeeds() {
 
             const feeds = subs.map(s => s.feeds).filter(Boolean);
             let totalNewArticles = 0;
+            const totalFeeds = feeds.length;
+            let currentFeedIndex = 0;
+
+            if (onProgress) onProgress(currentFeedIndex, totalFeeds);
 
             // For simplicity, fetch all sequentially. In prod, do via edge function worker.
             for (const feed of feeds) {
-                // @ts-ignore
+                // @ts-expect-error ignore feed typing from supabase
                 const { url, id: feed_id } = feed;
                 try {
                     const { data: parsedFeed } = await supabase.functions.invoke('parse-rss', {
@@ -369,24 +405,29 @@ export function useSyncFeeds() {
                     });
 
                     if (parsedFeed && parsedFeed.items) {
-                        const articlesToInsert = parsedFeed.items.slice(0, 50).map((item: any) => ({
+                        const articlesToInsert = parsedFeed.items.slice(0, 50).map((item: { title?: string, link?: string, imageUrl?: string, content?: string, contentEncoded?: string, contentSnippet?: string, creator?: string, author?: string, isoDate?: string, pubDate?: string }) => ({
                             feed_id,
                             title: item.title?.substring(0, 255) || 'Untitled',
                             url: item.link,
                             image_url: item.imageUrl || null,
                             content: item.content || item.contentEncoded || item.contentSnippet || '',
                             author: item.creator || item.author || '',
-                            published_at: item.isoDate || item.pubDate ? new Date(item.isoDate || item.pubDate).toISOString() : new Date().toISOString()
+                            published_at: item.isoDate || item.pubDate ? new Date(item.isoDate || item.pubDate || '').toISOString() : new Date().toISOString()
                         }));
 
                         if (articlesToInsert.length > 0) {
                             const { data: insertedData, error: upsertError } = await supabase
                                 .from('articles')
                                 .upsert(articlesToInsert, { onConflict: 'url' })
-                                .select('id');
+                                .select('id, url');
 
                             if (!upsertError && insertedData) {
                                 totalNewArticles += insertedData.length;
+
+                                // Trigger full text extraction asynchronously
+                                supabase.functions.invoke('extract-article', {
+                                    body: { articles: insertedData }
+                                }).catch(err => console.error('Failed to trigger extract-article:', err));
                             }
                         }
 
@@ -395,6 +436,8 @@ export function useSyncFeeds() {
                 } catch (err) {
                     console.error('Failed to sync feed', feed, err);
                 }
+                currentFeedIndex++;
+                if (onProgress) onProgress(currentFeedIndex, totalFeeds);
             }
             return { count: totalNewArticles };
         },
@@ -403,6 +446,7 @@ export function useSyncFeeds() {
             queryClient.invalidateQueries({ queryKey: ['articles'] });
             queryClient.invalidateQueries({ queryKey: ['feeds'] });
             queryClient.invalidateQueries({ queryKey: ['old_articles_count'] }); // Invalidate old_articles_count after flushing
+            queryClient.invalidateQueries({ queryKey: ['last_sync'] });
         }
     });
 }
@@ -462,7 +506,7 @@ export function useArticle(id?: string) {
             return {
                 ...data,
                 feeds: Array.isArray(data.feeds) ? data.feeds[0] : data.feeds
-            } as any;
+            } as Record<string, any>;
         },
         enabled: !!id && !!user
     });
@@ -502,7 +546,7 @@ export function useReadArticles() {
                 .from('read_articles')
                 .select('article_id');
             if (error) throw error;
-            return data.map((r: any) => r.article_id as string);
+            return data.map((r: { article_id: string }) => r.article_id);
         },
         enabled: !!user,
     });
@@ -596,4 +640,65 @@ export function useMarkOlderAsRead() {
     });
 }
 
+export function useProfile() {
+    const { user } = useAuth();
+
+    return useQuery({
+        queryKey: ['profile', user?.id],
+        queryFn: async () => {
+            if (!user) return null;
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
+            return data;
+        },
+        enabled: !!user,
+    });
+}
+
+export function useUpdateProfile() {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (updates: Record<string, unknown>) => {
+            if (!user) throw new Error('Not authenticated');
+
+            const { error } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', user.id);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['profile'] });
+        }
+    });
+}
+
+export function useReorderCurrents() {
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    return useMutation({
+        mutationFn: async (currents: { id: string, order_index: number }[]) => {
+            if (!user) throw new Error("Must be logged in");
+
+            // We need to upsert all at once
+            const updates = currents.map(c => ({ id: c.id, user_id: user.id, order_index: c.order_index }));
+
+            const { error } = await supabase
+                .from('currents')
+                .upsert(updates, { onConflict: 'id' });
+
+            if (error) throw error;
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['currents'] })
+    });
+}
 

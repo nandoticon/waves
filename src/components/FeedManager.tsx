@@ -25,7 +25,7 @@ export function FeedManager() {
     }
 
     // Group feeds by current_id
-    const groupedFeeds = (feeds as any[]).reduce((acc: any, sub: any) => {
+    const groupedFeeds = (feeds as { feed_id: string, current_id: string, feeds: Record<string, unknown> }[]).reduce((acc: Record<string, typeof feeds>, sub) => {
         const currentId = sub.current_id || 'unassigned';
         if (!acc[currentId]) acc[currentId] = [];
         acc[currentId].push(sub);
@@ -35,7 +35,7 @@ export function FeedManager() {
     return (
         <div className="space-y-6">
             <AnimatePresence mode="popLayout">
-                {Object.entries(groupedFeeds).map(([currentId, groupFeeds]: [string, any]) => {
+                {Object.entries(groupedFeeds).map(([currentId, groupFeeds]) => {
                     const currentName = currentId === 'unassigned'
                         ? 'General'
                         : currents?.find(c => c.id === currentId)?.name || 'Unknown Current';
@@ -48,8 +48,8 @@ export function FeedManager() {
                             </div>
 
                             <div className="bg-card shadow-sm border border-border/60 rounded-3xl overflow-hidden divide-y divide-border/30">
-                                {groupFeeds.map((sub: any) => {
-                                    const feed = sub.feeds;
+                                {groupFeeds.map((sub: { feed_id: string, feeds: Record<string, unknown> }) => {
+                                    const feed = sub.feeds as { icon_url?: string; title?: string; url?: string; last_article_at?: string };
                                     return (
                                         <motion.div
                                             layout

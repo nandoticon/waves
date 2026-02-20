@@ -8,7 +8,8 @@ import { useEffect } from 'react';
 
 export default function Reader() {
     const { id } = useParams<{ id: string }>();
-    const { data: article, isLoading } = useArticle(id);
+    const { data, isLoading } = useArticle(id);
+    const article = data as Record<string, any> | undefined;
     const { data: savedArticles } = useSavedArticles();
     const { mutateAsync: toggleSave, isPending: isSaving } = useToggleSave();
     const { mutate: markAsRead } = useMarkAsRead();
