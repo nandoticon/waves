@@ -1,11 +1,11 @@
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Search, Infinity as RiverIcon, Star, Users, Loader2, RefreshCw, Hash, Bookmark, Wind, LayoutList, LayoutGrid, Eye, EyeOff, BookmarkCheck, RotateCcw, Zap, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Infinity as RiverIcon, Star, Users, Loader2, RefreshCw, Hash, Bookmark, Wind, LayoutList, LayoutGrid, Eye, EyeOff, BookmarkCheck, RotateCcw, Zap, CheckCircle2, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import { AddFeedForm } from '../components/AddFeedForm';
 import { EmptyState } from '../components/EmptyState';
-import { useSyncFeeds, useArticles, useCurrents, useSavedArticles, useReadArticles, useMarkAsRead, useUnmarkAsRead, useToggleSave, useMarkOlderAsRead, useFlushOldArticles, useLastSyncTime, useProfile, useUpdateProfile } from '../hooks/useApi';
+import { useSyncFeeds, useArticles, useCurrents, useSavedArticles, useReadArticles, useMarkAsRead, useUnmarkAsRead, useToggleSave, useMarkOlderAsRead, useFlushOldArticles, useLastSyncTime, useProfile, useUpdateProfile, useBackfillImages } from '../hooks/useApi';
 import type { Article } from '../hooks/useApi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cleanExcerpt } from '../lib/sanitizer';
@@ -104,6 +104,7 @@ const STATIC_TABS = [
 export default function Home() {
     const { loading } = useAuth();
     const { mutateAsync: syncFeeds, isPending: isSyncing } = useSyncFeeds();
+    const { mutateAsync: backfillImages, isPending: isBackfilling } = useBackfillImages();
     const { data: currents } = useCurrents();
     const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem('waves_tab') || 'river');
     const [viewMode, setViewMode] = useState<'list' | 'magazine'>(() => {
@@ -490,21 +491,40 @@ export default function Home() {
                                         </p>
                                     )}
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        setSyncProgress({ current: 0, total: 1 }); // Start with a small visual
-                                        syncFeeds({
-                                            onProgress: (current, total) => setSyncProgress({ current, total })
-                                        }).finally(() => {
-                                            setTimeout(() => setSyncProgress(null), 2000);
-                                        });
-                                    }}
-                                    disabled={isSyncing}
-                                    className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-full hover:bg-secondary/80 disabled:opacity-50 transition-colors shrink-0 whitespace-nowrap"
-                                >
-                                    {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                    Sync Network
-                                </button>
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const res = await backfillImages();
+                                                alert(res.message || `Successfully processed articles.`);
+                                            } catch (err) {
+                                                console.error(err);
+                                                alert('Failed to fetch images');
+                                            }
+                                        }}
+                                        disabled={isBackfilling}
+                                        className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-full hover:bg-muted/80 disabled:opacity-50 transition-colors whitespace-nowrap"
+                                        title="Attempt to find thumbnails for articles that don't have one"
+                                    >
+                                        {isBackfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                                        Fetch Missing Images
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSyncProgress({ current: 0, total: 1 }); // Start with a small visual
+                                            syncFeeds({
+                                                onProgress: (current, total) => setSyncProgress({ current, total })
+                                            }).finally(() => {
+                                                setTimeout(() => setSyncProgress(null), 2000);
+                                            });
+                                        }}
+                                        disabled={isSyncing}
+                                        className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-full hover:bg-secondary/80 disabled:opacity-50 transition-colors whitespace-nowrap"
+                                    >
+                                        {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        Sync Network
+                                    </button>
+                                </div>
                             </div>
 
                             <AnimatePresence>
@@ -715,14 +735,16 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
         >
             <Link to={`/article/${article.id}`} className={clsx(
                 "block group/link transition-all duration-500",
-                viewMode === 'magazine' && article.image_url ? "grid grid-cols-[100px,1fr] sm:grid-cols-[140px,1fr] lg:grid-cols-[180px,1fr] gap-4 md:gap-6" : "space-y-4"
+                article.image_url
+                    ? "grid grid-cols-[120px,1fr] md:grid-cols-[200px,1fr] gap-4 md:gap-8"
+                    : "space-y-4"
             )}>
                 {article.image_url && (
                     <div className={clsx(
-                        "relative flex-shrink-0 overflow-hidden rounded-2xl bg-muted transition-all duration-500",
+                        "relative flex-shrink-0 overflow-hidden rounded-xl bg-muted/50 transition-all duration-500 shadow-sm",
                         viewMode === 'magazine'
                             ? "aspect-[4/3] sm:aspect-square sm:order-1 max-h-32 sm:max-h-none mb-0 w-[100px] sm:w-[140px] md:w-full"
-                            : "aspect-[16/9] mb-4"
+                            : "aspect-[4/3] w-full"
                     )}>
                         <motion.img
                             src={article.image_url}
@@ -739,79 +761,68 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
                 )}
 
                 <div className={clsx(
-                    "flex flex-col min-w-0",
+                    "flex flex-col min-w-0 justify-center",
                     viewMode === 'magazine' && article.image_url && "sm:order-2"
                 )}>
-                    <div className="text-xs font-sans font-bold tracking-widest text-muted-foreground uppercase flex items-center gap-2 mb-3">
-                        {article.feeds?.icon_url ? (
-                            <motion.img
-                                src={article.feeds.icon_url}
-                                alt=""
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                loading="lazy"
-                                className="w-4 h-4 rounded object-cover shrink-0 grayscale group-hover/link:grayscale-0 transition-all opacity-80"
-                            />
-                        ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-                        )}
-                        {feedTitle}
-                    </div>
-
                     <h2 className={clsx(
-                        "font-serif font-medium group-hover/link:text-primary transition-all duration-300",
-                        viewMode === 'magazine' ? "text-xl md:text-[22px] leading-[1.3] font-semibold" : "text-[22px] leading-[1.3]",
+                        "font-serif font-bold group-hover/link:text-primary transition-all duration-300",
+                        viewMode === 'magazine' ? "text-xl md:text-[22px] leading-[1.3]" : "text-lg md:text-2xl leading-[1.2]",
                         isRead ? "text-foreground/50" : "text-foreground"
                     )}>
                         {article.title}
                     </h2>
 
-                    <p className="text-[15px] leading-relaxed text-muted-foreground font-serif pt-2 line-clamp-3 opacity-90">
+                    <div className="text-[13px] md:text-sm font-sans text-muted-foreground/60 flex items-center gap-1.5 mt-1 sm:mt-2">
+                        <span className="font-semibold">{feedTitle}</span>
+                        <span>/</span>
+                        <span>{article.published_at ? getRelativeTime(article.published_at) : 'Unknown'}</span>
+                    </div>
+
+                    <p className={clsx(
+                        "text-[14px] md:text-[15px] leading-relaxed text-muted-foreground/80 font-serif pt-2 opacity-90",
+                        viewMode === 'magazine' ? "line-clamp-2" : "line-clamp-2 md:line-clamp-3"
+                    )}>
                         {cleanExcerpt(article.excerpt || '') || "Dive into this story to explore more about this topic..."}
                     </p>
 
-                    <div className="text-xs font-sans text-muted-foreground/80 pt-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3 transition-opacity duration-700">
-                            {article.published_at ? getRelativeTime(article.published_at) : 'Unknown Date'}
+                    <div className="hidden md:flex text-xs font-sans text-muted-foreground/40 pt-3 items-center justify-between">
+                        <div className="flex items-center gap-3">
                             {article.excerpt && article.excerpt.length > 5 && (
-                                <span title="Available offline">
-                                    <Zap className="w-3 h-3 text-primary/60" />
-                                </span>
+                                <Zap className="w-3 h-3 text-primary/30" />
                             )}
-                            {viewMode === 'magazine' && <span className="w-1 h-1 rounded-full bg-border" />}
-                            {viewMode === 'magazine' && <span className="opacity-60">{article.read_time_minutes || 5} min read</span>}
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover/link:opacity-100 transition-opacity">
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleSave({ articleId: article.id, isSaved });
-                                }}
-                                className={clsx(
-                                    "p-1.5 rounded-full hover:bg-muted transition-colors",
-                                    isSaved ? "text-primary" : "text-muted-foreground"
-                                )}
-                                title={isSaved ? "Unsave" : "Save"}
-                            >
-                                {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-                            </button>
-                            {isRead && (
-                                <button
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        unmarkAsRead(article.id);
-                                    }}
-                                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors"
-                                    title="Mark as unread"
-                                >
-                                    <RotateCcw className="w-4 h-4" />
-                                </button>
-                            )}
+                            <span className="opacity-60">{article.read_time_minutes || 5} min read</span>
                         </div>
                     </div>
+                </div>
+
+                <div className="absolute top-2 right-2 md:relative md:top-0 md:right-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleSave({ articleId: article.id, isSaved });
+                        }}
+                        className={clsx(
+                            "p-1.5 rounded-full hover:bg-muted transition-colors",
+                            isSaved ? "text-primary" : "text-muted-foreground"
+                        )}
+                        title={isSaved ? "Unsave" : "Save"}
+                    >
+                        {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                    </button>
+                    {isRead && (
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                unmarkAsRead(article.id);
+                            }}
+                            className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors"
+                            title="Mark as unread"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </Link>
         </motion.article>

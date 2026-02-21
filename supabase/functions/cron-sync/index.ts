@@ -62,22 +62,39 @@ Deno.serve(async () => {
                     console.log(`Syncing feed (Cron): ${feed.url}`);
                     const feedData = await parser.parseURL(feed.url);
 
-                    const articlesToInsert = feedData.items.map((item: any) => ({
-                        feed_id: feed.id,
-                        title: item.title?.substring(0, 500) || 'Untitled',
-                        url: item.link || '',
-                        author: item.creator || item.author || null,
-                        excerpt: (item.contentSnippet || item.content || '').substring(0, 500),
-                        content: item.contentEncoded || item.content || '',
-                        published_at: item.isoDate || item.pubDate || new Date().toISOString(),
-                        image_url: item.enclosure?.url || item.image?.url || item.mediaContent?.['$']?.url || null
-                    })).filter((a: any) => a.url);
+                    const articlesToInsert = feedData.items.map((item: any) => {
+                        // Better image extraction for RSS/Atom
+                        let imageUrl = item.enclosure?.url ||
+                            item.image?.url ||
+                            item.mediaContent?.[0]?.url ||
+                            item.itunes?.image ||
+                            item['media:thumbnail']?.['$']?.url ||
+                            null;
+
+                        // Fallback: parse content for first <img> tag
+                        if (!imageUrl) {
+                            const content = item.content || item.contentEncoded || '';
+                            const imgMatch = content.match(/<img[^>]+src="([^">]+)"/i);
+                            if (imgMatch) imageUrl = imgMatch[1];
+                        }
+
+                        return {
+                            feed_id: feed.id,
+                            title: item.title?.substring(0, 500) || 'Untitled',
+                            url: item.link || '',
+                            author: item.creator || item.author || null,
+                            excerpt: (item.contentSnippet || item.content || '').substring(0, 500),
+                            content: item.contentEncoded || item.content || '',
+                            published_at: item.isoDate || item.pubDate || new Date().toISOString(),
+                            image_url: imageUrl
+                        };
+                    }).filter((a: any) => a.url);
 
                     if (articlesToInsert.length > 0) {
                         const { data: inserted, error: insertErr } = await supabase
                             .from('articles')
                             .upsert(articlesToInsert, { onConflict: 'url', ignoreDuplicates: true })
-                            .select('id, url');
+                            .select('id, url, image_url');
 
                         if (insertErr) {
                             console.error(`Error inserting articles for ${feed.url}:`, insertErr);

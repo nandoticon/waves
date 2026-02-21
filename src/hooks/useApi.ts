@@ -485,6 +485,25 @@ export function useSyncFeeds() {
     });
 }
 
+export function useBackfillImages() {
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    return useMutation({
+        mutationFn: async () => {
+            if (!user) throw new Error("Must be logged in to backfill images");
+            const { data, error } = await supabase.functions.invoke('backfill-images', {
+                body: {}
+            });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['articles'] });
+        }
+    });
+}
+
 export function useAddCurrent() {
     const queryClient = useQueryClient();
     const { user } = useAuth();

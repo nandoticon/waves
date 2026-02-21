@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
     for (let i = 0; i < articles.length; i += batchSize) {
       const batch = articles.slice(i, i + batchSize);
 
-      await Promise.all(batch.map(async (article: { url: string; id: string }) => {
+      await Promise.all(batch.map(async (article: { url: string; id: string; image_url?: string | null }) => {
         if (!article.url || !article.id) return;
 
         try {
@@ -69,14 +69,30 @@ Deno.serve(async (req: Request) => {
           const articleData = reader.parse();
 
           if (articleData && articleData.content) {
+            // Try to find a featured image if missing from RSS
+            let featuredImage = null;
+            if (!article.image_url) {
+              const ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
+              const twitterImg = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+              const linkImg = doc.querySelector('link[rel="image_src"]')?.getAttribute('href');
+              const thumbImg = doc.querySelector('meta[name="thumbnail"]')?.getAttribute('content');
+
+              featuredImage = ogImg || twitterImg || linkImg || thumbImg;
+            }
+
             // Update the article in the database
+            const updateData: any = {
+              content: articleData.content,
+            };
+
+            if (featuredImage) {
+              console.log(`Found featured image for ${article.url}: ${featuredImage}`);
+              updateData.image_url = featuredImage;
+            }
+
             const { error } = await supabase
               .from('articles')
-              .update({
-                content: articleData.content,
-                // We don't overwrite the title or author if they were already good from RSS, but we could
-                // if we wanted to prioritize the scraped version. For now, just update content.
-              })
+              .update(updateData)
               .eq('id', article.id);
 
             if (error) {
