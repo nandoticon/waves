@@ -1,10 +1,10 @@
 import React from 'react';
 import { useTheme } from '../lib/theme';
 import { useFlushOldArticles, useOldArticlesCount } from '../hooks/useApi';
-import { ChevronLeft, Sun, Monitor, Trash2, Loader2, Layers, Rss } from 'lucide-react';
+import { ChevronLeft, Sun, Monitor, Trash2, Loader2, Waves as WaveIcon, Rss, Anchor as ShipIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
-import { CurrentsManager } from '../components/CurrentsManager';
+import { WavesManager } from '../components/WavesManager';
 import { FeedManager } from '../components/FeedManager';
 import { useProfile, useUpdateProfile } from '../hooks/useApi';
 
@@ -114,7 +114,7 @@ export default function Settings() {
                             <form onSubmit={handleProfileSubmit} className="space-y-6">
                                 <div className="flex items-center justify-between mb-6 px-1">
                                     <div className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-muted-foreground uppercase">
-                                        <Layers className="w-3.5 h-3.5" />
+                                        <ShipIcon className="w-3.5 h-3.5" />
                                         Profile Settings
                                     </div>
                                     {hasChanges && (
@@ -217,12 +217,12 @@ export default function Settings() {
                     <div className="lg:col-span-7 space-y-16">
                         <section>
                             <div className="flex items-center gap-2 mb-6 px-1 text-[10px] font-black tracking-[0.2em] text-muted-foreground uppercase">
-                                <Layers className="w-3.5 h-3.5" />
-                                Currents
+                                <WaveIcon className="w-3.5 h-3.5" />
+                                Waves
                             </div>
-                            <CurrentsManager />
+                            <WavesManager />
                             <p className="mt-4 px-1 text-xs text-muted-foreground/60 font-medium leading-relaxed italic">
-                                Currents group your favorite voices into topical streams.
+                                Waves group your favorite voices into topical streams.
                             </p>
                         </section>
 

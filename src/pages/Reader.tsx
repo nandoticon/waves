@@ -8,8 +8,7 @@ import { useEffect } from 'react';
 
 export default function Reader() {
     const { id } = useParams<{ id: string }>();
-    const { data, isLoading } = useArticle(id);
-    const article = data as Record<string, any> | undefined;
+    const { data: article, isLoading } = useArticle(id);
     const { data: savedArticles } = useSavedArticles();
     const { mutateAsync: toggleSave, isPending: isSaving } = useToggleSave();
     const { mutate: markAsRead } = useMarkAsRead();
@@ -20,7 +19,7 @@ export default function Reader() {
         }
     }, [id, article, markAsRead]);
 
-    const isSaved = savedArticles?.some((a: any) => a.id === id) || false;
+    const isSaved = savedArticles?.some((a) => a.id === id) || false;
 
     if (isLoading) {
         return (
@@ -63,7 +62,7 @@ export default function Reader() {
 
     // Use stored image_url or attempt to extract from content if present
     const imgMatch = article.content?.match(/<img[^>]+src="([^">]+)"/);
-    const heroImage = article.image_url || imgMatch?.[1] || null;
+    const heroImage = article.image_url || imgMatch?.[1] || undefined;
 
     // Sanitize content
     const sanitizedContent = DOMPurify.sanitize(article.content || '', { USE_PROFILES: { html: true } });

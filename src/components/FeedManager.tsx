@@ -1,22 +1,37 @@
-import { useFeeds, useUnsubscribe, useCurrents } from '../hooks/useApi';
-import { Loader2, Trash2, Rss, Clock } from 'lucide-react';
+import { Loader2, Waves as WaveIcon, Clock, Trash2 } from 'lucide-react';
+import { useFeeds, useDeleteFeed, useWaves, useUpdateSubscription } from '../hooks/useApi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyState } from './EmptyState';
 import { formatDistanceToNow } from 'date-fns';
 
-export function FeedManager() {
-    const { data: feeds, isLoading: isLoadingFeeds } = useFeeds();
-    const { data: currents, isLoading: isLoadingCurrents } = useCurrents();
-    const { mutateAsync: unsubscribe, isPending: isUnsubscribing } = useUnsubscribe();
+interface FeedData {
+    id: string;
+    title?: string;
+    url?: string;
+    icon_url?: string;
+    last_article_at?: string;
+}
 
-    if (isLoadingFeeds || isLoadingCurrents) {
+interface SubscriptionData {
+    feed_id: string;
+    current_id: string | null;
+    feeds: FeedData;
+}
+
+export function FeedManager() {
+    const { data: subscriptions, isLoading: isLoadingFeeds } = useFeeds();
+    const { data: waves, isLoading: isLoadingWaves } = useWaves();
+    const { mutateAsync: deleteFeed, isPending: isDeletingFeed } = useDeleteFeed();
+    const { mutate: updateSubscription } = useUpdateSubscription();
+
+    if (isLoadingFeeds || isLoadingWaves) {
         return <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
     }
 
-    if (!feeds || feeds.length === 0) {
+    if (!subscriptions || subscriptions.length === 0) {
         return (
             <EmptyState
-                icon={Rss}
+                icon={WaveIcon}
                 title="No subscriptions"
                 description="You are not subscribed to any voices yet. Add feeds to start building your network."
                 className="py-10"
@@ -24,32 +39,32 @@ export function FeedManager() {
         );
     }
 
-    // Group feeds by current_id
-    const groupedFeeds = (feeds as { feed_id: string, current_id: string, feeds: Record<string, unknown> }[]).reduce((acc: Record<string, typeof feeds>, sub) => {
-        const currentId = sub.current_id || 'unassigned';
-        if (!acc[currentId]) acc[currentId] = [];
-        acc[currentId].push(sub);
+    // Group subscriptions by current_id
+    const groupedSubscriptions = (subscriptions as SubscriptionData[]).reduce((acc: Record<string, SubscriptionData[]>, sub) => {
+        const waveId = sub.current_id || 'uncharted';
+        if (!acc[waveId]) acc[waveId] = [];
+        acc[waveId].push(sub);
         return acc;
-    }, {});
+    }, {} as Record<string, SubscriptionData[]>);
 
     return (
         <div className="space-y-6">
             <AnimatePresence mode="popLayout">
-                {Object.entries(groupedFeeds).map(([currentId, groupFeeds]) => {
-                    const currentName = currentId === 'unassigned'
-                        ? 'General'
-                        : currents?.find(c => c.id === currentId)?.name || 'Unknown Current';
+                {Object.entries(groupedSubscriptions).map(([waveId, groupSubs]) => {
+                    const waveName = waveId === 'uncharted'
+                        ? 'Uncharted'
+                        : waves?.find(w => w.id === waveId)?.name || 'Unknown Wave';
 
                     return (
-                        <div key={currentId} className="space-y-3">
+                        <div key={waveId} className="space-y-3">
                             <div className="flex items-center gap-2 px-2">
-                                <h4 className="text-[10px] font-sans font-black tracking-[0.2em] uppercase text-muted-foreground/50">{currentName}</h4>
+                                <h4 className="text-[10px] font-sans font-black tracking-[0.2em] uppercase text-muted-foreground/50">{waveName}</h4>
                                 <div className="h-[1px] flex-1 bg-border/20" />
                             </div>
 
                             <div className="bg-card shadow-sm border border-border/60 rounded-3xl overflow-hidden divide-y divide-border/30">
-                                {groupFeeds.map((sub: { feed_id: string, feeds: Record<string, unknown> }) => {
-                                    const feed = sub.feeds as { icon_url?: string; title?: string; url?: string; last_article_at?: string };
+                                {groupSubs.map((sub) => {
+                                    const feed = sub.feeds;
                                     return (
                                         <motion.div
                                             layout
@@ -65,7 +80,7 @@ export function FeedManager() {
                                                     <img src={feed.icon_url} alt="" className="w-8 h-8 rounded shrink-0 object-cover border border-border/50 bg-background" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded bg-muted flex items-center justify-center shrink-0 border border-border/50 text-muted-foreground">
-                                                        <Rss className="w-4 h-4" />
+                                                        <WaveIcon className="w-4 h-4" />
                                                     </div>
                                                 )}
                                                 <div className="truncate">
@@ -84,13 +99,36 @@ export function FeedManager() {
                                                     </div>
                                                 </div>
                                             </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={() => updateSubscription({ feedId: feed.id, currentId: null })}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ring-1 ${!sub?.current_id
+                                                        ? 'bg-primary/10 text-primary ring-primary/20'
+                                                        : 'bg-muted/50 text-muted-foreground ring-transparent hover:bg-muted'
+                                                        }`}
+                                                >
+                                                    Uncharted
+                                                </button>
+                                                {waves?.map((wave) => (
+                                                    <button
+                                                        key={wave.id}
+                                                        onClick={() => updateSubscription({ feedId: feed.id, currentId: wave.id })}
+                                                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ring-1 ${sub?.current_id === wave.id
+                                                            ? 'bg-primary/10 text-primary ring-primary/20'
+                                                            : 'bg-muted/50 text-muted-foreground ring-transparent hover:bg-muted'
+                                                            }`}
+                                                    >
+                                                        {wave.name}
+                                                    </button>
+                                                ))}
+                                            </div>
                                             <button
                                                 onClick={async () => {
                                                     if (confirm(`Are you sure you want to unsubscribe from ${feed.title}?`)) {
-                                                        await unsubscribe(sub.feed_id);
+                                                        await deleteFeed(sub.feed_id);
                                                     }
                                                 }}
-                                                disabled={isUnsubscribing}
+                                                disabled={isDeletingFeed}
                                                 aria-label={`Unsubscribe from ${feed.title}`}
                                                 className="shrink-0 p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors disabled:opacity-50"
                                             >

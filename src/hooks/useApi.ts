@@ -23,20 +23,38 @@ export interface Article {
     };
 }
 
-export function useCurrents() {
+interface ArticleQueryResult {
+    id: string;
+    title: string;
+    excerpt?: string;
+    content?: string;
+    author: string | null;
+    published_at: string;
+    url: string;
+    image_url: string | null;
+    feeds: {
+        title: string;
+        icon_url: string | null;
+    } | {
+        title: string;
+        icon_url: string | null;
+    }[];
+}
+
+export function useWaves() {
     const { user } = useAuth();
 
     return useQuery({
-        queryKey: ['currents', user?.id],
+        queryKey: ['waves', user?.id],
         queryFn: async () => {
             if (!user) return [];
             const { data, error } = await supabase
-                .from('currents')
+                .from('currents') // Keeping table name as is for now to avoid DB migration complexity
                 .select('*')
                 .order('order_index');
 
             if (error) throw error;
-            return data;
+            return data as { id: string, name: string, order_index?: number }[];
         },
         enabled: !!user,
     });
@@ -57,7 +75,7 @@ export function useFeeds() {
 
             // Transform data to match the expected structure if necessary
             // The RPC returns { feed_id, current_id, title, url, icon_url, last_article_at }
-            return data.map((item: { feed_id: string, current_id: string, title?: string, url?: string, icon_url?: string, last_article_at?: string }) => ({
+            return data.map((item: { feed_id: string, current_id: string | null, title?: string, url?: string, icon_url?: string, last_article_at?: string }) => ({
                 feed_id: item.feed_id,
                 current_id: item.current_id,
                 feeds: {
@@ -119,8 +137,8 @@ export function useArticles(currentId?: string, page: number = 0) {
             if (error) throw error;
 
             // Ensure content is excerpted safely and calculate read time
-            return (data || []).map((article) => {
-                const fullText = (article as any).excerpt || '';
+            return ((data as unknown as ArticleQueryResult[]) || []).map((article) => {
+                const fullText = article.excerpt || article.content || '';
                 // basic word count approximation
                 const wordCount = fullText.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
                 const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
@@ -166,12 +184,12 @@ export function useSavedArticles() {
 
             if (error) throw error;
             return (data || []).map((s) => {
-                const article = s.articles as any;
+                const article = s.articles as unknown as ArticleQueryResult;
                 const feeds = Array.isArray(article.feeds) ? article.feeds[0] : article.feeds;
                 return {
                     ...article,
                     feeds,
-                    excerpt: article?.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : ''
+                    excerpt: article?.excerpt ? article.excerpt.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : (article?.content ? article.content.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : '')
                 } as Article;
             });
         },
@@ -431,15 +449,15 @@ export function useSyncFeeds() {
 
             // For simplicity, fetch all sequentially. In prod, do via edge function worker.
             for (const feed of feeds) {
-                // @ts-expect-error ignore feed typing from supabase
-                const { url, id: feed_id } = feed;
+                const { url, id: feed_id } = feed as unknown as { url: string, id: string };
                 try {
                     const { data: parsedFeed } = await supabase.functions.invoke('parse-rss', {
                         body: { url },
                     });
 
-                    if (parsedFeed && parsedFeed.items) {
-                        const articlesToInsert = parsedFeed.items.slice(0, 50).map((item: { title?: string, link?: string, imageUrl?: string, content?: string, contentEncoded?: string, contentSnippet?: string, creator?: string, author?: string, isoDate?: string, pubDate?: string }) => ({
+                    if (parsedFeed && (parsedFeed as { items: unknown[] }).items) {
+                        const parsedData = parsedFeed as { items: { title?: string, link?: string, imageUrl?: string, content?: string, contentEncoded?: string, contentSnippet?: string, creator?: string, author?: string, isoDate?: string, pubDate?: string }[] };
+                        const articlesToInsert = parsedData.items.slice(0, 50).map((item) => ({
                             feed_id,
                             title: item.title?.substring(0, 255) || 'Untitled',
                             url: item.link,
@@ -504,21 +522,21 @@ export function useBackfillImages() {
     });
 }
 
-export function useAddCurrent() {
+export function useAddWave() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
 
     return useMutation({
         mutationFn: async ({ name }: { name: string }) => {
-            if (!user) throw new Error("Must be logged in to add a current");
+            if (!user) throw new Error("Must be logged in to add a wave");
             const { error } = await supabase.from('currents').insert({ name, user_id: user.id });
             if (error) throw error;
         },
-        onSettled: () => queryClient.invalidateQueries({ queryKey: ['currents'] })
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['waves'] })
     });
 }
 
-export function useDeleteCurrent() {
+export function useDeleteWave() {
     const queryClient = useQueryClient();
 
     return useMutation({
@@ -526,7 +544,7 @@ export function useDeleteCurrent() {
             const { error } = await supabase.from('currents').delete().eq('id', id);
             if (error) throw error;
         },
-        onSettled: () => queryClient.invalidateQueries({ queryKey: ['currents'] })
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['waves'] })
     });
 }
 
@@ -584,7 +602,32 @@ export function useUnsubscribe() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['feeds'] });
             queryClient.invalidateQueries({ queryKey: ['articles'] });
-            queryClient.invalidateQueries({ queryKey: ['currents'] });
+            queryClient.invalidateQueries({ queryKey: ['waves'] });
+        },
+    });
+}
+
+export const useDeleteFeed = useUnsubscribe;
+
+export function useUpdateSubscription() {
+    const { user } = useAuth();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ feedId, currentId }: { feedId: string, currentId: string | null }) => {
+            if (!user) throw new Error('Not authenticated');
+
+            const { error } = await supabase
+                .from('subscriptions')
+                .update({ current_id: currentId })
+                .eq('user_id', user.id)
+                .eq('feed_id', feedId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feeds'] });
+            queryClient.invalidateQueries({ queryKey: ['articles'] });
         },
     });
 }
@@ -734,16 +777,16 @@ export function useUpdateProfile() {
     });
 }
 
-export function useReorderCurrents() {
+export function useReorderWaves() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
 
     return useMutation({
-        mutationFn: async (currents: { id: string, order_index: number }[]) => {
+        mutationFn: async (waves: { id: string, order_index: number }[]) => {
             if (!user) throw new Error("Must be logged in");
 
             // We need to upsert all at once
-            const updates = currents.map(c => ({ id: c.id, user_id: user.id, order_index: c.order_index }));
+            const updates = waves.map(w => ({ id: w.id, user_id: user.id, order_index: w.order_index }));
 
             const { error } = await supabase
                 .from('currents')
@@ -751,7 +794,7 @@ export function useReorderCurrents() {
 
             if (error) throw error;
         },
-        onSettled: () => queryClient.invalidateQueries({ queryKey: ['currents'] })
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['waves'] })
     });
 }
 

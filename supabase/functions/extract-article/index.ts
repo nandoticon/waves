@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
           const doc = new DOMParser().parseFromString(html, 'text/html');
 
           // Use readability to extract content
-          const reader = new Readability(doc as unknown as Document);
+          const reader = new Readability(doc as unknown as unknown as Document);
           const articleData = reader.parse();
 
           if (articleData && articleData.content) {
@@ -86,8 +86,12 @@ Deno.serve(async (req: Request) => {
               featuredImage = ogImg || twitterImg || linkImg || thumbImg;
             }
 
+            interface UpdateData {
+              content: string;
+              image_url?: string;
+            }
             // Update the article in the database
-            const updateData: any = {
+            const updateData: UpdateData = {
               content: articleData.content,
             };
 
@@ -98,7 +102,7 @@ Deno.serve(async (req: Request) => {
 
             const { error } = await supabase
               .from('articles')
-              .update(updateData)
+              .update(updateData as unknown as Record<string, unknown>)
               .eq('id', article.id);
 
             if (error) {

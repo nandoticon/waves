@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useAddFeed, useCurrents } from '../hooks/useApi';
+import { useAddFeed, useWaves } from '../hooks/useApi';
 import { Plus, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function AddFeedForm({ currentId: initialCurrentId }: { currentId?: string }) {
     const [url, setUrl] = useState('');
     const [localCurrentId, setLocalCurrentId] = useState(initialCurrentId || '');
-    const { data: currents } = useCurrents();
+    const { data: waves } = useWaves();
     const { mutateAsync: addFeed, isPending, error } = useAddFeed();
     const [success, setSuccess] = useState(false);
 
@@ -45,18 +45,18 @@ export function AddFeedForm({ currentId: initialCurrentId }: { currentId?: strin
                 </button>
             </div>
 
-            {currents && currents.length > 0 && (
+            {waves && waves.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider pl-1">Assign to Current</label>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider pl-1">Assign to Wave</label>
                     <select
                         value={localCurrentId}
                         onChange={(e) => setLocalCurrentId(e.target.value)}
                         disabled={isPending}
                         className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm opacity-80"
                     >
-                        <option value="">No Current (River only)</option>
-                        {currents.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
+                        <option value="">No Wave (Sea only)</option>
+                        {waves.map(w => (
+                            <option key={w.id} value={w.id}>{w.name}</option>
                         ))}
                     </select>
                 </div>
@@ -73,7 +73,7 @@ export function AddFeedForm({ currentId: initialCurrentId }: { currentId?: strin
                         className="flex items-center gap-2 text-green-500 text-sm font-medium pl-1 mt-1"
                     >
                         <CheckCircle2 className="w-4 h-4" />
-                        Feed successfully added to your river.
+                        Feed successfully added to your sea.
                     </motion.div>
                 )}
             </AnimatePresence>

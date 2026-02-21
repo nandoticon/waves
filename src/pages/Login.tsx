@@ -54,8 +54,9 @@ export default function Login() {
                 setView('sign_in');
                 setPassword('');
             }
-        } catch (err: any) {
-            setErrorMsg(err.message || 'An error occurred during authentication.');
+        } catch (err) {
+            const error = err as Error;
+            setErrorMsg(error.message || 'An error occurred during authentication.');
         } finally {
             setLoading(false);
         }
@@ -63,7 +64,7 @@ export default function Login() {
 
     const containerVariants: Variants = {
         hidden: { opacity: 0, y: 20 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as any, staggerChildren: 0.1 } },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut', staggerChildren: 0.1 } },
         exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
     };
 

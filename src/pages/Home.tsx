@@ -1,11 +1,11 @@
 import { useAuth } from '../lib/auth';
 import { Link } from 'react-router-dom';
-import { Settings as SettingsIcon, Search, Infinity as RiverIcon, Star, Users, Loader2, RefreshCw, Hash, Bookmark, Wind, LayoutList, LayoutGrid, Eye, EyeOff, BookmarkCheck, RotateCcw, Zap, CheckCircle2, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Search, Waves as SeaIcon, Star, Users, Loader2, RefreshCw, Bookmark, Wind, LayoutList, LayoutGrid, Eye, EyeOff, BookmarkCheck, RotateCcw, Zap, CheckCircle2, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import { AddFeedForm } from '../components/AddFeedForm';
 import { EmptyState } from '../components/EmptyState';
-import { useSyncFeeds, useArticles, useCurrents, useSavedArticles, useReadArticles, useMarkAsRead, useUnmarkAsRead, useToggleSave, useMarkOlderAsRead, useFlushOldArticles, useLastSyncTime, useProfile, useUpdateProfile, useBackfillImages } from '../hooks/useApi';
+import { useSyncFeeds, useArticles, useWaves, useSavedArticles, useReadArticles, useMarkAsRead, useUnmarkAsRead, useToggleSave, useMarkOlderAsRead, useFlushOldArticles, useLastSyncTime, useProfile, useUpdateProfile, useBackfillImages } from '../hooks/useApi';
 import type { Article } from '../hooks/useApi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cleanExcerpt } from '../lib/sanitizer';
@@ -37,21 +37,21 @@ function getRelativeTime(dateString: string) {
 }
 
 // Local types
-type CurrentType = { id: string, name: string, order_index?: number, [key: string]: unknown };
+type WaveType = { id: string, name: string, order_index?: number };
 
-function groupArticlesByDate(articles: Article[], currents: CurrentType[], isRiver: boolean) {
+function groupArticlesByDate(articles: Article[], waves: WaveType[], isSea: boolean) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
     const groups: Record<string, Article[] | Record<string, Article[]>> = {
-        'Today': isRiver ? {} : [],
-        'Yesterday': isRiver ? {} : [],
-        'Older': isRiver ? {} : []
+        'Today': isSea ? {} : [],
+        'Yesterday': isSea ? {} : [],
+        'Older': isSea ? {} : []
     };
 
-    const currentMap = new Map(currents?.map(c => [c.id, c.name]));
+    const waveMap = new Map(waves?.map(w => [w.id, w.name]));
 
     articles.forEach(article => {
         const date = new Date(article.published_at || '');
@@ -61,30 +61,30 @@ function groupArticlesByDate(articles: Article[], currents: CurrentType[], isRiv
         if (date.getTime() === today.getTime()) dateKey = 'Today';
         else if (date.getTime() === yesterday.getTime()) dateKey = 'Yesterday';
 
-        if (isRiver) {
+        if (isSea) {
             const currentId = article.feeds?.subscriptions?.[0]?.current_id;
-            const currentName = currentId ? (currentMap.get(currentId) || 'Uncategorized') : 'Uncategorized';
+            const waveName = currentId ? (waveMap.get(currentId) || 'Uncharted') : 'Uncharted';
 
-            const currentGroup = groups[dateKey] as Record<string, Article[]>;
-            if (!currentGroup[currentName]) {
-                currentGroup[currentName] = [];
+            const waveGroup = groups[dateKey] as Record<string, Article[]>;
+            if (!waveGroup[waveName]) {
+                waveGroup[waveName] = [];
             }
-            currentGroup[currentName].push(article);
+            waveGroup[waveName].push(article);
         } else {
             (groups[dateKey] as Article[]).push(article);
         }
     });
 
-    if (isRiver) {
-        // Sort the nested group dictionaries based on currents order
-        const orderedCurrentNames = currents?.sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999)).map(c => c.name) || [];
-        orderedCurrentNames.push('Uncategorized');
+    if (isSea) {
+        // Sort the nested group dictionaries based on waves order
+        const orderedWaveNames = waves?.sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999)).map(w => w.name) || [];
+        orderedWaveNames.push('Uncharted');
 
         for (const dateKey of ['Today', 'Yesterday', 'Older']) {
             const temp = groups[dateKey] as Record<string, Article[]>;
             groups[dateKey] = {};
             const newGroup = groups[dateKey] as Record<string, Article[]>;
-            for (const name of orderedCurrentNames) {
+            for (const name of orderedWaveNames) {
                 if (temp[name]) {
                     newGroup[name] = temp[name];
                 }
@@ -96,7 +96,7 @@ function groupArticlesByDate(articles: Article[], currents: CurrentType[], isRiv
 }
 
 const STATIC_TABS = [
-    { id: 'river', label: 'River', icon: RiverIcon },
+    { id: 'river', label: 'Sea', icon: SeaIcon },
     { id: 'saved', label: 'Saved', icon: Star },
     { id: 'voices', label: 'Voices', icon: Users },
 ] as const;
@@ -105,7 +105,7 @@ export default function Home() {
     const { loading } = useAuth();
     const { mutateAsync: syncFeeds, isPending: isSyncing } = useSyncFeeds();
     const { mutateAsync: backfillImages, isPending: isBackfilling } = useBackfillImages();
-    const { data: currents } = useCurrents();
+    const { data: waves } = useWaves();
     const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem('waves_tab') || 'river');
     const [viewMode, setViewMode] = useState<'list' | 'magazine'>(() => {
         return (localStorage.getItem('waves_view_mode') as 'list' | 'magazine') || 'list';
@@ -248,7 +248,7 @@ export default function Home() {
 
     const TABS = [
         STATIC_TABS[0],
-        ...(currents?.map(c => ({ id: c.id, label: c.name, icon: Hash })) || []),
+        ...(waves?.map(w => ({ id: w.id, label: w.name, icon: Wind })) || []),
         STATIC_TABS[1],
         STATIC_TABS[2]
     ];
@@ -273,7 +273,7 @@ export default function Home() {
     const articles = isSavedTab ? (savedArticlesData as Article[] || []) : visibleArticles;
     const isLoadingArts = isSavedTab ? isLoadingSaved : status === 'pending';
 
-    const groupedArticles = groupArticlesByDate(articles, currents || [], activeTab === 'river');
+    const groupedArticles = groupArticlesByDate(articles, waves || [], activeTab === 'river');
 
     // Handle Greeting Logic once river articles and profile load
     useEffect(() => {
@@ -284,9 +284,7 @@ export default function Home() {
             // Show greeting if last seen was > 6 hours ago
             if ((now.getTime() - lastSeen.getTime()) > 6 * 60 * 60 * 1000) {
                 const recentArticles = ((riverArticles as Article[]) || []).filter((a) => a.published_at && new Date(a.published_at) > lastSeen);
-                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setFetchedWhileAway(recentArticles.length);
-                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setShowGreeting(true);
 
                 // Keep the greeting visible for 10 seconds unless dismissed manually
@@ -472,7 +470,7 @@ export default function Home() {
 
             <main className={clsx(
                 "pb-24 mt-4 transition-all duration-500",
-                viewMode === 'magazine' ? "w-full" : "max-w-[480px] mx-auto space-y-12"
+                viewMode === 'magazine' ? "w-full" : "max-w-3xl mx-auto space-y-12"
             )}>
                 {activeTab === 'voices' ? (
                     <div className="space-y-6">
@@ -826,7 +824,7 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
     );
 }
 
-function HomeSkeleton({ viewMode, TABS, activeTab }: { viewMode: 'list' | 'magazine', TABS: { id: string, label: string, icon: any }[], activeTab: string }) {
+function HomeSkeleton({ viewMode, TABS, activeTab }: { viewMode: 'list' | 'magazine', TABS: { id: string, label: string, icon: React.ElementType }[], activeTab: string }) {
     return (
         <div className={clsx(
             "mx-auto min-h-screen px-4 font-serif transition-all duration-500",
@@ -856,7 +854,7 @@ function HomeSkeleton({ viewMode, TABS, activeTab }: { viewMode: 'list' | 'magaz
                     <div className="w-10 h-10 rounded-full bg-muted/30 animate-pulse border border-border/50" />
                 </div>
             </header>
-            <main className={clsx("pb-24 mt-4 transition-all duration-500", viewMode === 'magazine' ? "w-full" : "max-w-[480px] mx-auto space-y-12")}>
+            <main className={clsx("pb-24 mt-4 transition-all duration-500", viewMode === 'magazine' ? "w-full" : "max-w-3xl mx-auto space-y-12")}>
                 <div className={clsx("w-full transition-all duration-500",
                     viewMode === 'magazine' ? "grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16" : "space-y-12"
                 )}>
@@ -870,17 +868,17 @@ function HomeSkeleton({ viewMode, TABS, activeTab }: { viewMode: 'list' | 'magaz
 function ArticleSkeleton({ viewMode }: { viewMode: 'list' | 'magazine' }) {
     return (
         <div className={clsx("block transition-all duration-500",
-            viewMode === 'magazine' ? "grid grid-cols-[100px,1fr] sm:grid-cols-[140px,1fr] lg:grid-cols-[180px,1fr] gap-4 md:gap-6" : "space-y-4"
+            viewMode === 'magazine' ? "grid grid-cols-[100px,1fr] sm:grid-cols-[140px,1fr] lg:grid-cols-[180px,1fr] gap-4 md:gap-6" : "grid grid-cols-3 gap-4 md:gap-8"
         )}>
             {/* Image Skeleton */}
             <div className={clsx("relative flex-shrink-0 rounded-2xl bg-muted/50 animate-pulse",
                 viewMode === 'magazine'
                     ? "aspect-[4/3] sm:aspect-square sm:order-1 max-h-32 sm:max-h-none mb-0 w-[100px] sm:w-[140px] md:w-full"
-                    : "aspect-[16/9] mb-4"
+                    : "col-span-1 aspect-[4/3] w-full"
             )} />
 
             {/* Content Skeleton */}
-            <div className={clsx("flex flex-col min-w-0", viewMode === 'magazine' && "sm:order-2")}>
+            <div className={clsx("flex flex-col min-w-0 justify-center", viewMode === 'magazine' ? "sm:order-2" : "col-span-2")}>
                 {/* Upper meta block */}
                 <div className="flex items-center gap-2 mb-3">
                     <div className="w-4 h-4 rounded-full bg-muted/80 animate-pulse" />
