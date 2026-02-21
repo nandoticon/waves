@@ -50,8 +50,14 @@ Deno.serve(async (req: Request) => {
                 const html = await response.text();
                 const doc = new DOMParser().parseFromString(html, 'text/html');
 
-                const ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
-                const twitterImg = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content');
+                const ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+                    doc.querySelector('meta[name="og:image"]')?.getAttribute('content') ||
+                    doc.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content') ||
+                    doc.querySelector('meta[property="og:image:url"]')?.getAttribute('content');
+
+                const twitterImg = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content') ||
+                    doc.querySelector('meta[name="twitter:image:src"]')?.getAttribute('content');
+
                 const linkImg = doc.querySelector('link[rel="image_src"]')?.getAttribute('href');
                 const thumbImg = doc.querySelector('meta[name="thumbnail"]')?.getAttribute('content');
 
