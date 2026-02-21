@@ -736,15 +736,13 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
             <Link to={`/article/${article.id}`} className={clsx(
                 "block group/link transition-all duration-500",
                 article.image_url
-                    ? "grid grid-cols-[120px,1fr] md:grid-cols-[200px,1fr] gap-4 md:gap-8"
+                    ? "grid grid-cols-3 gap-4 md:gap-8"
                     : "space-y-4"
             )}>
                 {article.image_url && (
                     <div className={clsx(
                         "relative flex-shrink-0 overflow-hidden rounded-xl bg-muted/50 transition-all duration-500 shadow-sm",
-                        viewMode === 'magazine'
-                            ? "aspect-[4/3] sm:aspect-square sm:order-1 max-h-32 sm:max-h-none mb-0 w-[100px] sm:w-[140px] md:w-full"
-                            : "aspect-[4/3] w-full"
+                        "col-span-1 aspect-[4/3] w-full"
                     )}>
                         <motion.img
                             src={article.image_url}
@@ -761,8 +759,7 @@ function ArticleItem({ article, viewMode, isRead, isSaved, onRead }: { article: 
                 )}
 
                 <div className={clsx(
-                    "flex flex-col min-w-0 justify-center",
-                    viewMode === 'magazine' && article.image_url && "sm:order-2"
+                    "flex flex-col min-w-0 justify-center col-span-2"
                 )}>
                     <h2 className={clsx(
                         "font-serif font-bold group-hover/link:text-primary transition-all duration-300",
